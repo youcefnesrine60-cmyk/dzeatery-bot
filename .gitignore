@@ -1,0 +1,65 @@
+# ========================
+# 🔐 Secrets & Env
+# ========================
+.env
+.env.*
+*.env
+
+# ========================
+# 🐍 Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# ========================
+# 🧪 Testing / Coverage
+# ========================
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ========================
+# 🧠 IDE / Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ========================
+# 🐳 Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# 🪵 Logs
+# ========================
+*.log
+logs/
+
+# ========================
+# 🗃️ Database / Cache (local only)
+# ========================
+*.sqlite3
+*.db
+dump.rdb
+
+# ========================
+# 📦 Build / Dist
+# ========================
+build/
+dist/
+*.egg-info/
+
+# ========================
+# 🧾 OS files
+# ========================
+.DS_Store
+Thumbs.db
