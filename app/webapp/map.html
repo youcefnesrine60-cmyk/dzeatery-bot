@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Select Location</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+    body { margin:0; }
+    #map { height:90vh; }
+    button {
+        width:100%;
+        height:10vh;
+        font-size:18px;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+<button onclick="sendLocation()">✅ تأكيد الموقع</button>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
+let tg = window.Telegram.WebApp;
+tg.expand();
+
+let map = L.map('map').setView([36.75, 3.06], 13); // الجزائر
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+}).addTo(map);
+
+let marker;
+
+map.on('click', function(e) {
+    if (marker) {
+        map.removeLayer(marker);
+    }
+    marker = L.marker(e.latlng).addTo(map);
+});
+
+function sendLocation() {
+    if (!marker) {
+        alert("اختر موقع أولاً");
+        return;
+    }
+
+    const coords = marker.getLatLng();
+
+    tg.sendData(JSON.stringify({
+        lat: coords.lat,
+        lng: coords.lng
+    }));
+
+    tg.close();
+}
+</script>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-from models.restaurant_model import load_restaurants
+from app.repositories.restaurant_repo import get_all_restaurants
 
 # =========================
 # 🟢 UI BUILDERS
@@ -43,7 +43,7 @@ def back_ui():
     }
 
 def restaurants_ui():
-    restaurants = load_restaurants()
+    restaurants = get_all_restaurants()
     buttons = []
 
     for name in restaurants:

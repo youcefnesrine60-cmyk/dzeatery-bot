@@ -1,23 +1,16 @@
-import json
-import os
 
-FILE = "data/users.json"
+#=========Consent===========
 
-def _load():
-    if not os.path.exists(FILE):
-        return {}
-    with open(FILE, "r") as f:
-        return json.load(f)
-
-def _save(data):
-    with open(FILE, "w") as f:
-        json.dump(data, f, indent=2)
+from app.core.db import get_cursor
 
 def has_consent(chat_id):
-    users = _load()
-    return users.get(str(chat_id), {}).get("consent", False)
+    cur = get_cursor()
+    cur.execute("SELECT 1 FROM users WHERE chat_id=%s", (chat_id,))
+    return cur.fetchone() is not None
 
 def give_consent(chat_id):
-    users = _load()
-    users[str(chat_id)] = {"consent": True}
-    _save(users)
+    cur = get_cursor()
+    cur.execute(
+        "INSERT INTO users (chat_id) VALUES (%s) ON CONFLICT DO NOTHING",
+        (chat_id,)
+    )
