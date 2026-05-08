@@ -42,6 +42,19 @@ def back_ui():
         ]
     }
 
+def location_webapp_ui():
+    return {
+        "inline_keyboard": [
+            [{
+                "text": "📍 تحديد موقع المحل",
+                "web_app": {
+                    "url": "https://dzeatery.onrender.com/map"
+                }
+            }],
+            [{"text": "🔙 رجوع", "callback_data": "back_step"}]
+        ]
+    }
+
 def restaurants_ui():
     restaurants = get_all_restaurants()
     buttons = []
