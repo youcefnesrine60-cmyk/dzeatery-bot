@@ -172,11 +172,8 @@ def handle_callback(data):
 
         state["chat_id"] = chat_id
 
-        try:
-            save(state)
-            delete_state(chat_id)
-        except:
-            rollback()
+        save(state)
+        delete_state(chat_id)
 
         edit_message(
             chat_id,
