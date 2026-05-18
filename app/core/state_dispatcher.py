@@ -1,0 +1,41 @@
+from app.handlers.owner_handler import (
+    handle_owner_state
+)
+
+class StateDispatcher:
+
+    @classmethod
+    async def dispatch(
+
+        cls: 'StateDispatcher',
+
+        chat_id: int,
+
+        text: str,
+
+        state: dict
+    ) -> any:
+
+        flow = state.get("flow")
+
+        if flow == "owner":
+
+            return await handle_owner_state(
+
+                chat_id,
+
+                text,
+
+                state
+            )
+
+        elif flow == "customer":
+
+            return await handle_customer_state(
+
+                chat_id,
+
+                text,
+
+                state
+            )

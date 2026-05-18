@@ -1,9 +1,13 @@
 from app.repositories.restaurant_repo import get_all_restaurants
+from app.core.logger import (
+    logger
+)
 
 # =========================
 # 🟢 UI BUILDERS
 # =========================
-def main_menu_ui():
+def main_menu_ui() -> dict:
+    logger.info("Displaying main menu")
     return {
         "inline_keyboard": [
             [{"text": "🍽️  زبون مطعم", "callback_data": "customer"}],
@@ -11,7 +15,8 @@ def main_menu_ui():
         ]
     }
 
-def consent_ui(role):
+def consent_ui(role: str) -> dict:
+    logger.info(f"Displaying consent UI for {role}")
     return {
         "inline_keyboard": [
             [{"text": "✅ أوافق", "callback_data": f"consent_{role}"}],
@@ -19,7 +24,8 @@ def consent_ui(role):
         ]
     }
 
-def consent_text():
+def consent_text() -> str:
+    logger.info("Displaying consent text")
     return (
         "📢 <b> إشعار قانوني/خاص بالدولة الجزائرية</b>\n\n"
         "<b><u> سياسة حماية المعطيات ذات الطابع الشخصي </u></b>\n\n"
@@ -35,14 +41,16 @@ def consent_text():
         "⚠️ بالضغط على (أوافق) فإنك تقبل هذه الشروط."
     )
 
-def back_ui():
+def back_ui() -> dict:
+    logger.info("Displaying back UI")
     return {
         "inline_keyboard": [
             [{"text": "🔙 رجوع", "callback_data": "back_step"}]
         ]
     }
 
-def location_webapp_ui():
+def location_webapp_ui() -> dict:
+    logger.info("Displaying location webapp UI")
     return {
         "inline_keyboard": [
             [{
@@ -55,8 +63,8 @@ def location_webapp_ui():
         ]
     }
 
-def restaurants_ui():
-    restaurants = get_all_restaurants()
+def restaurants_ui(restaurants: list) -> dict:
+    logger.info(f"Displaying restaurants UI with {len(restaurants)} restaurants")
     buttons = []
 
     for name in restaurants:
@@ -68,7 +76,8 @@ def restaurants_ui():
     buttons.append([{"text": "🔙 رجوع", "callback_data": "back_main"}])
     return {"inline_keyboard": buttons}
 
-def restaurant_actions_ui(name):
+def restaurant_actions_ui(name: str) -> dict:
+    logger.info(f"Displaying actions UI for restaurant {name}")
     return {
         "inline_keyboard": [
             [{"text": "📦 طلب", "callback_data": f"order_{name}"}],
@@ -76,7 +85,8 @@ def restaurant_actions_ui(name):
         ]
     }
 
-def types_ui():
+def types_ui() -> dict:
+    logger.info("Displaying types UI")
     return {
         "inline_keyboard": [
             [{"text": "1- مطعم تقليدي", "callback_data": "type_traditional"}],
@@ -90,7 +100,8 @@ def types_ui():
         ]
     }
 
-def confirm_ui():
+def confirm_ui() -> dict:
+    logger.info("Displaying confirm UI")
     return {
         "inline_keyboard": [
             [{"text": "✅ تأكيد التسجيل", "callback_data": "confirm"}],

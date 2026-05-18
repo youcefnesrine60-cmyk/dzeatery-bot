@@ -1,31 +1,13 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from app.controllers.bot_controller import handle_update
+from fastapi import FastAPI
 
-import requests
-import os
+from app.api.webhook import router
 
-app = FastAPI()
 
-# ✅ mount خارج startup
-app.mount("/static", StaticFiles(directory="app/webapp"), name="static")
+app = FastAPI(
 
-# ================= WEBHOOK =================
-@app.post("/webhook")
-async def webhook(req: Request):
-    data = await req.json()
-    handle_update(data)
-    return {"ok": True}
+    title="DZ Eatery Bot",
 
-# ================= SET WEBHOOK =================
-@app.on_event("startup")
-def set_webhook():
-    url = f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/setWebhook"
-    requests.post(url, json={"url": os.getenv("WEBHOOK_URL")})
+    version="1.0.0"
+)
 
-# ================= WEBAPP PAGE =================
-@app.get("/webapp", response_class=HTMLResponse)
-def map_page():
-    with open("app/webapp/map.html", "r", encoding="utf-8") as f:
-        return f.read()
+app.include_router(router)

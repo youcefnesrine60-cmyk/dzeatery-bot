@@ -3,12 +3,12 @@
 
 from app.core.db import get_cursor
 
-def has_consent(chat_id):
+def has_consent(chat_id: int) -> bool:
     cur = get_cursor()
     cur.execute("SELECT 1 FROM users WHERE chat_id=%s", (chat_id,))
     return cur.fetchone() is not None
 
-def give_consent(chat_id):
+def give_consent(chat_id: int) -> None:
     cur = get_cursor()
     cur.execute(
         "INSERT INTO users (chat_id) VALUES (%s) ON CONFLICT DO NOTHING",

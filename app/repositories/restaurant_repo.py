@@ -2,7 +2,7 @@ from app.core.db import get_cursor
 
 
 # ================= GET ALL =================
-def get_all_restaurants():
+def get_all_restaurants() -> list[str]:
     cur = get_cursor()
 
     cur.execute("""
@@ -15,7 +15,7 @@ def get_all_restaurants():
 
 
 # ================= EXISTS =================
-def exists(name):
+def exists(name: str) -> bool:
     cur = get_cursor()
 
     cur.execute("""
@@ -28,7 +28,7 @@ def exists(name):
 
 
 # ================= SAVE =================
-def save(data):
+def save(data: dict) -> None:
     cur = get_cursor()
 
     cur.execute("""

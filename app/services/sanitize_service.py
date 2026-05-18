@@ -1,6 +1,9 @@
 import re
 
-def sanitize_text(text, max_length=50):
+def sanitize_text(
+        text: str, 
+        max_length: int = 50
+) -> str | None:
     if not text:
         return None
 
