@@ -10,7 +10,9 @@ from app.services.telegram_service import (
     answer_callback
 )
 
-from app.core.logger import logger
+from app.core.logger import (
+    logger
+)
 
 # ==============================================
 # 📌 HANDLE CALLBACK

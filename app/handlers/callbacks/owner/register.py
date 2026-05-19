@@ -84,6 +84,8 @@ async def owner_callback(
     )
 
     set_state(chat_id, {
+         
+        "flow": "owner",
 
         "step": OwnerStates.NAME,
 
@@ -127,6 +129,8 @@ async def consent_callback(
     if callback_data.endswith("owner"):
 
         set_state(chat_id, {
+             
+            "flow": "owner",
 
             "step": OwnerStates.NAME,
 
