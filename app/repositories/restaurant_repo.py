@@ -54,3 +54,23 @@ def save(data: dict) -> None:
         data["lng"],
         data["chat_id"]
     ))
+
+# ==============================================
+# 🔍 GET RESTAURANT BY ID
+# ==============================================
+
+def get_restaurant_by_id(
+
+    restaurant_id: int
+
+) -> dict | None:
+
+    restaurants = get_all_restaurants()
+
+    for restaurant in restaurants:
+
+        if restaurant["id"] == restaurant_id:
+
+            return restaurant
+
+    return None

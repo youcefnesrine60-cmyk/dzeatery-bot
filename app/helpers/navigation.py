@@ -1,11 +1,80 @@
+# ==============================================
+# 🔙 NAVIGATION HELPER
+# ==============================================
+
 from app.repositories.state_repo import (
     get_state,
     set_state
 )
 
-# =====================================================
-# 🔙 BACK SYSTEM
-# =====================================================
+from app.core.logger import (
+    logger
+)
+
+from app.states.owner_states import (
+    OwnerStates
+)
+
+# ==============================================
+# 🧹 STEP CLEANUP MAP
+# تنظيف البيانات حسب المرحلة
+# ==============================================
+
+STEP_CLEANUP = {
+
+    OwnerStates.NAME: [
+
+        "owner",
+        "restaurant",
+        "wilaya",
+        "lat",
+        "lng",
+        "type",
+        "phone"
+    ],
+
+    OwnerStates.RESTAURANT_NAME: [
+
+        "restaurant",
+        "wilaya",
+        "lat",
+        "lng",
+        "type",
+        "phone"
+    ],
+
+    OwnerStates.WILAYA: [
+
+        "wilaya",
+        "lat",
+        "lng",
+        "type",
+        "phone"
+    ],
+
+    OwnerStates.LOCATION: [
+
+        "lat",
+        "lng",
+        "type",
+        "phone"
+    ],
+
+    OwnerStates.TYPE: [
+
+        "type",
+        "phone"
+    ],
+
+    OwnerStates.PHONE: [
+
+        "phone"
+    ]
+}
+
+# ==============================================
+# 🔙 GO BACK
+# ==============================================
 
 def go_back(
 
@@ -15,67 +84,72 @@ def go_back(
 
     state = get_state(chat_id)
 
+    # ==========================================
+    # 🚫 NO STATE
+    # ==========================================
+
     if not state:
+
+        logger.warning(
+
+            "navigation_state_missing",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return None
 
-    if not state.get("history"):
+    history = state.get("history", [])
+
+    # ==========================================
+    # 🚫 EMPTY HISTORY
+    # ==========================================
+
+    if not history:
+
+        logger.info(
+
+            "navigation_history_empty",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return None
 
-    previous_step = state["history"].pop()
+    # ==========================================
+    # 🔙 GET PREVIOUS STEP
+    # ==========================================
 
-    # تنظيف البيانات حسب المرحلة
-    cleanup = {
+    previous_step = history.pop()
 
-        "name": [
-            "owner",
-            "restaurant",
-            "wilaya",
-            "lat",
-            "lng",
-            "type",
-            "phone"
-        ],
+    # ==========================================
+    # 🧹 CLEAN RELATED DATA
+    # ==========================================
 
-        "restaurant_name": [
-            "restaurant",
-            "wilaya",
-            "lat",
-            "lng",
-            "type",
-            "phone"
-        ],
-
-        "wilaya": [
-            "wilaya",
-            "lat",
-            "lng",
-            "type",
-            "phone"
-        ],
-
-        "location": [
-            "lat",
-            "lng",
-            "type",
-            "phone"
-        ],
-
-        "type": [
-            "type",
-            "phone"
-        ],
-
-        "phone": [
-            "phone"
-        ]
-    }
-
-    for key in cleanup.get(previous_step, []):
+    for key in STEP_CLEANUP.get(previous_step, []):
 
         state.pop(key, None)
+
+    # ==========================================
+    # 💾 UPDATE STATE
+    # ==========================================
 
     state["step"] = previous_step
 
     set_state(chat_id, state)
+
+    logger.info(
+
+        "navigation_back_success",
+
+        extra={
+            "chat_id": chat_id,
+            "step": previous_step
+        }
+    )
 
     return previous_step

@@ -30,7 +30,7 @@ from app.views.texts import (
      OWNER_NAME
 )
 
-from app.handlers.customer_handler import (
+from app.handlers.callbacks.customer.restaurant_list import (
     show_restaurants
 )
 

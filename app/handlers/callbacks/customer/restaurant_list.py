@@ -9,6 +9,10 @@ from app.core.logger import (
     logger
 )
 
+from app.repositories.restaurant_repo import (
+    get_all_restaurants
+)
+
 from app.repositories.user_repo import (
     has_consent
 )
@@ -26,14 +30,13 @@ from app.views.ui import (
     consent_ui
 )
 
-from app.handlers.customer_handler.restaurant_step import (
-    show_restaurants
-)
-
 from app.states.customer_states import (
     CustomerStates
 )
 
+from app.views.ui import (
+    restaurants_ui
+)
 
 # ==============================================
 # 👤 CUSTOMER CALLBACK
@@ -101,13 +104,43 @@ async def customer_callback(
         }
     )
 
-    # ==========================================
-    # 🍽️ SHOW RESTAURANTS
-    # ==========================================
-
     await show_restaurants(
-
         chat_id,
-
         message_id
+    )
+
+# ==========================================
+# 🍽️ SHOW RESTAURANTS
+# عرض قائمة المطاعم للمستخدم
+# ==========================================
+
+async def show_restaurants(
+    chat_id: int,
+    message_id: int
+) -> None:
+
+    restaurants = get_all_restaurants()
+
+    if not restaurants:
+
+        logger.warning(
+            "لا توجد مطاعم لعرضها للمستخدم",
+            extra=
+            {
+                "chat_id": chat_id
+            }
+        )
+        await UIManager.update(
+            chat_id,
+            message_id,
+            "❌ عذراً، قائمة المطاعم غير متوفرة حالياً"
+        )
+
+        return
+
+    await UIManager.update(
+        chat_id,
+        message_id,
+        "🍽️ اختر مطعم:",
+        restaurants_ui(restaurants)
     )
