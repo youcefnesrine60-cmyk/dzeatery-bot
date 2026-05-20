@@ -1,14 +1,20 @@
 # ==============================================
-# 🍽️ CUSTOMER RESTAURANT LIST
-# مسؤول عن عرض قائمة المطاعم
+# 🍽️ CUSTOMER CALLBACK
+# 🍽️ SHOW RESTAURANTS
 # ==============================================
 
 import re
 
-from app.core.logger import logger
+from app.core.logger import (
+    logger
+)
 
 from app.repositories.user_repo import (
     has_consent
+)
+
+from app.repositories.state_repo import (
+    set_state
 )
 
 from app.helpers.ui_manager import (
@@ -20,9 +26,14 @@ from app.views.ui import (
     consent_ui
 )
 
-from app.handlers.customer_handler import (
+from app.handlers.customer_handler.restaurant_step import (
     show_restaurants
 )
+
+from app.states.customer_states import (
+    CustomerStates
+)
+
 
 # ==============================================
 # 👤 CUSTOMER CALLBACK
@@ -69,17 +80,30 @@ async def customer_callback(
         return
 
     # ==========================================
-    # 🍽️ SHOW RESTAURANTS
+    # 🧠 INIT CUSTOMER FLOW
     # ==========================================
+
+    set_state(chat_id, {
+
+        "flow": "customer",
+
+        "step": CustomerStates.RESTAURANT,
+
+        "history": []
+    })
 
     logger.info(
 
-        "customer_restaurants_requested",
+        "customer_flow_started",
 
         extra={
             "chat_id": chat_id
         }
     )
+
+    # ==========================================
+    # 🍽️ SHOW RESTAURANTS
+    # ==========================================
 
     await show_restaurants(
 

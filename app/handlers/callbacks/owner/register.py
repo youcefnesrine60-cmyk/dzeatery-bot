@@ -1,5 +1,6 @@
 # ==============================================
 # 🏪 OWNER (صاحب المحل)
+# owner_callback - consent_callback
 # This file contains the callbacks related to 
 # the owner registration process.
 # ==============================================

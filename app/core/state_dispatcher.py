@@ -2,6 +2,10 @@ from app.handlers.owner_handler import (
     handle_owner_state
 )
 
+from app.handlers.customer_handler import (
+    handle_customer_state
+)
+
 class StateDispatcher:
 
     @classmethod
