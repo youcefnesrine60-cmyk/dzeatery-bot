@@ -2,9 +2,7 @@
 # 🍔 RESTAURANT CALLBACKS
 # ==============================================
 
-import re
-
-from app.handlers.customer_handler import (
+from app.handlers.callbacks.customer.restaurant_details import (
     handle_restaurant_selection
 )
 
