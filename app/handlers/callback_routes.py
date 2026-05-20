@@ -2,9 +2,7 @@
 # 📌 CALLBACK ROUTES REGISTRATION
 # ==============================================
 
-from app.core.router_instance import (
-    router
-)
+from app.core.router_instance import router
 
 from app.handlers.callbacks.order_callbacks import (
     order_callback
@@ -21,11 +19,6 @@ from app.handlers.callbacks.owner import (
 from app.handlers.callbacks.type_callbacks import (
     type_callback
 )
-
-from app.handlers.callbacks.restaurant_callbacks import (
-    restaurant_callback
-)
-
 
 # ==============================================
 # 🚀 SETUP ROUTES
@@ -44,11 +37,6 @@ def setup_routes() -> None:
     # ============================================
 
     register_customer_routes()
-
-    router.register(
-        r"^rest_.*",
-        restaurant_callback
-    )
 
     # ============================================
     # TYPE
