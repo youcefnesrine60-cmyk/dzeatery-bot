@@ -22,6 +22,11 @@ class StateDispatcher:
 
         flow = state.get("flow")
 
+        # ==========================================
+        # OWNER FLOW
+        # ==========================================
+
+
         if flow == "owner":
 
             return await handle_owner_state(
@@ -33,7 +38,12 @@ class StateDispatcher:
                 state
             )
 
-        elif flow == "customer":
+        # ==========================================
+        # CUSTOMER FLOW
+        # مؤقتًا غير مفعل
+        # ==========================================
+
+        #elif flow == "customer":
 
             return await handle_customer_state(
 
@@ -42,4 +52,5 @@ class StateDispatcher:
                 text,
 
                 state
-            )
+            )#.customer flow is currently disabled, so we return None for now
+        return None

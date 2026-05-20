@@ -2,17 +2,6 @@ from app.states.customer_states import (
     CustomerStates
 )
 
-from app.handlers.customer_handler.restaurant_step import (
-    handle_restaurant_step
-)
-
-from app.handlers.customer_handler.product_step import (
-    handle_product_step
-)
-
-from app.handlers.customer_handler.cart_step import (
-    handle_cart_step
-)
 
 from app.core.logger import (
     logger
@@ -44,11 +33,11 @@ async def handle_customer_state(
             }
         )
 
-        await handle_restaurant_step(
-            chat_id,
-            text,
-            state
-        )
+        #await handle_restaurant_step(
+            #chat_id,
+            #text,
+            #state
+        #)
 
     elif step == CustomerStates.PRODUCT:
 
@@ -60,11 +49,11 @@ async def handle_customer_state(
             }
         )
 
-        await handle_product_step(
-            chat_id,
-            text,
-            state
-        )
+        #await handle_product_step(
+            #chat_id,
+            #text,
+            #state
+        #)
 
     elif step == CustomerStates.CART:
 
@@ -76,8 +65,8 @@ async def handle_customer_state(
             }
         )
 
-        await handle_cart_step(
-            chat_id,
-            text,
-            state
-        )
+        #await handle_cart_step(
+            #chat_id,
+            #text,
+            #state
+        #)
