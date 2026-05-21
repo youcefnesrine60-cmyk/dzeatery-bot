@@ -3,9 +3,12 @@
 # الحظر/الإيقاف
 #===================================
 
-from app.core.redis_client import r
-from app.core.logger import logger
-
+from app.core.redis_client import (
+    redis_client
+)
+from app.core.logger import (
+    logger
+)
 
 # ==========================================
 # 🚫 BAN MANAGER
@@ -29,7 +32,7 @@ class BanManager:
         ttl: int = 3600
     ) -> None:
 
-        r.setex(
+        redis_client.setex(
 
             f"{cls.PREFIX}:{chat_id}",
 
@@ -60,7 +63,7 @@ class BanManager:
         chat_id: int
     ) -> None:
 
-        r.delete(
+        redis_client.delete(
 
             f"{cls.PREFIX}:{chat_id}"
         )
@@ -86,7 +89,7 @@ class BanManager:
         chat_id: int
     ) -> bool:
 
-        banned = r.exists(
+        banned = redis_client.exists(
 
             f"{cls.PREFIX}:{chat_id}"
 

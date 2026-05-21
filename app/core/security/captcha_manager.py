@@ -3,7 +3,9 @@
 # أنظمة التحدي
 #===========================
 
-from app.core.redis_client import r
+from app.core.redis_client import (
+    redis_client
+)
 
 
 class CaptchaManager:
@@ -26,7 +28,7 @@ class CaptchaManager:
         answer: str
     ) -> None:
 
-        r.setex(
+        redis_client.setex(
 
             f"{cls.PREFIX}:{chat_id}",
 
@@ -35,7 +37,7 @@ class CaptchaManager:
             "1"
         )
 
-        r.setex(
+        redis_client.setex(
 
             f"{cls.ANSWER_PREFIX}:{chat_id}",
 
@@ -54,7 +56,7 @@ class CaptchaManager:
         chat_id: int
     ) -> bool:
 
-        return r.exists(
+        return redis_client.exists(
 
             f"{cls.PREFIX}:{chat_id}"
 
@@ -74,7 +76,7 @@ class CaptchaManager:
         user_answer: str
     ) -> bool:
 
-        saved = r.get(
+        saved = redis_client.get(
 
             f"{cls.ANSWER_PREFIX}:{chat_id}"
         )
@@ -91,12 +93,12 @@ class CaptchaManager:
         chat_id: int
     ) -> None:
 
-        r.delete(
+        redis_client.delete(
 
             f"{cls.PREFIX}:{chat_id}"
         )
 
-        r.delete(
+        redis_client.delete(
 
             f"{cls.ANSWER_PREFIX}:{chat_id}"
         )

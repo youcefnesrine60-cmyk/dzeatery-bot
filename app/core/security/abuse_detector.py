@@ -2,8 +2,12 @@
 # كشف الاستغلال
 #=============================
 
-from app.core.redis_client import r
-from app.core.logger import logger
+from app.core.redis_client import (
+    redis_client
+)
+from app.core.logger import (
+    logger
+)
 
 
 # ==========================================
@@ -34,14 +38,14 @@ class AbuseDetector:
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        count = r.incrby(
+        count = redis_client.incrby(
 
             key,
 
             score
         )
 
-        r.expire(
+        redis_client.expire(
 
             key,
 
@@ -75,7 +79,7 @@ class AbuseDetector:
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        count = r.get(key)
+        count = redis_client.get(key)
 
         if not count:
 

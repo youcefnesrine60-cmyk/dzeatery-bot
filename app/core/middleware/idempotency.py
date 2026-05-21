@@ -3,7 +3,9 @@
 # هذه مهمة جدًا للـ payments
 #=====================================
 
-from app.core.redis_client import r
+from app.core.redis_client import (
+    redis_client
+)
 
 
 class Idempotency:
@@ -16,13 +18,13 @@ class Idempotency:
         ttl: int = 30
     ) -> bool:
 
-        exists = r.get(key)
+        exists = redis_client.get(key)
 
         if exists:
 
             return False
 
-        r.set(
+        redis_client.set(
             key,
             "1",
             ex=ttl

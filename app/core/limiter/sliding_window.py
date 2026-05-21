@@ -5,8 +5,9 @@
 
 import time
 
-from app.core.redis_client import r
-
+from app.core.redis_client import (
+    redis_client
+)
 
 # ==========================================
 # 🚫 LUA SLIDING WINDOW LIMITER
@@ -80,7 +81,7 @@ class SlidingWindowLimiter:
 
         redis_key = f"limit:{key}"
 
-        allowed = r.eval(
+        allowed = redis_client.eval(
 
             LUA_SCRIPT,
 

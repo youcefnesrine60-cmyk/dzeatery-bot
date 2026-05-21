@@ -7,7 +7,9 @@
 
 import time
 
-from app.core.redis_client import r
+from app.core.redis_client import (
+    redis_client
+)
 
 from app.core.limiter.sliding_window import (
     SlidingWindowLimiter
@@ -55,9 +57,9 @@ class AntiBot:
 
         now = time.time()
 
-        last = r.get(key)
+        last = redis_client.get(key)
 
-        r.setex(key, 10, now)
+        redis_client.setex(key, 10, now)
 
         if not last:
 

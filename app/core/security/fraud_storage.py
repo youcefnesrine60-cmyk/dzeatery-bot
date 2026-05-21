@@ -2,8 +2,9 @@
 #  تخزين سجل الاحتيال
 #================================
 
-from app.core.redis_client import r
-
+from app.core.redis_client import (
+    redis_client
+)
 
 class FraudStorage:
 
@@ -21,9 +22,9 @@ class FraudStorage:
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        r.incrby(key, score)
+        redis_client.incrby(key, score)
 
-        r.expire(key, 86400)
+        redis_client.expire(key, 86400)
 
     @classmethod
     async def get_score(
@@ -35,7 +36,7 @@ class FraudStorage:
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        score = r.get(key)
+        score = redis_client.get(key)
 
         return int(score) if score else 0
 
@@ -47,7 +48,7 @@ class FraudStorage:
         chat_id: int
     ) -> None:
 
-        r.delete(
+        redis_client.delete(
 
             f"{cls.PREFIX}:{chat_id}"
         )

@@ -4,7 +4,9 @@
 
 import time
 
-from app.core.redis_client import r
+from app.core.redis_client import (
+    redis_client
+)
 
 
 class TokenBucket:
@@ -23,7 +25,7 @@ class TokenBucket:
 
         now = time.time()
 
-        bucket = r.hgetall(redis_key)
+        bucket = redis_client.hgetall(redis_key)
 
         # =====================================
         # INIT
@@ -31,14 +33,14 @@ class TokenBucket:
 
         if not bucket:
 
-            r.hset(redis_key, mapping={
+            redis_client.hset(redis_key, mapping={
 
                 "tokens": capacity,
 
                 "last": now
             })
 
-            r.expire(redis_key, 3600)
+            redis_client.expire(redis_key, 3600)
 
             return True
 
@@ -75,7 +77,7 @@ class TokenBucket:
 
         tokens -= 1
 
-        r.hset(redis_key, mapping={
+        redis_client.hset(redis_key, mapping={
 
             "tokens": tokens,
 
