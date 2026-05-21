@@ -14,14 +14,22 @@ from app.handlers.callbacks.customer.restaurant_details import (
 
 def register_customer_routes():
 
-    router.callback(
+    # ==========================================
+    # CUSTOMER ENTRY
+    # ==========================================
+
+    router.register(
 
         r"^customer$",
 
         customer_callback
     )
 
-    router.callback(
+    # ==========================================
+    # RESTAURANT DETAILS
+    # ==========================================
+
+    router.register(
 
         r"^rest_(.+)$",
 
