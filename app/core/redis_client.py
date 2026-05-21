@@ -22,31 +22,43 @@ load_dotenv()
 REDIS_URL = os.getenv("REDIS_URL")
 
 # ==============================================
-# 🧠 MEMORY FALLBACK
+# 🧠 MEMORY STORAGE
 # ==============================================
 
 memory_storage = {}
 
 # ==============================================
-# 🔌 CONNECT REDIS
+# 🔌 REDIS CONNECTION
 # ==============================================
+
+redis_client = None
 
 if REDIS_URL:
 
-    redis_client = redis.from_url(
+    try:
 
-        REDIS_URL,
+        redis_client = redis.from_url(
 
-        decode_responses=True
-    )
+            REDIS_URL,
 
-    logger.info(
-        "Redis connected successfully."
-    )
+            decode_responses=True
+        )
+
+        redis_client.ping()
+
+        logger.info(
+            "Redis connected successfully."
+        )
+
+    except Exception as e:
+
+        logger.warning(
+            f"Redis unavailable: {e}"
+        )
+
+        redis_client = None
 
 else:
-
-    redis_client = None
 
     logger.warning(
         "REDIS_URL not found. Using memory storage."
