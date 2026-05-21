@@ -39,149 +39,21 @@ from app.handlers.captcha_handler import (
 from app.core.logger import logger
 
 
-# ==========================================
+# ==============================================
 # 🛡️ RISK ENGINE
-# ==========================================
+# ==============================================
 
 class RiskEngine:
 
-    @classmethod
+    @staticmethod
     async def analyze(
-
-        cls: type,
-
-        chat_id: int
+        chat_id: int,
+        text: str
     ) -> bool:
 
         # ======================================
-        # 🚫 BANNED USERS
-        # ======================================
-
-        banned = await BanManager.is_banned(
-            chat_id
-        )
-
-        if banned:
-
-            logger.warning(
-
-                "banned_user_blocked",
-
-                extra={
-                    "chat_id": chat_id
-                }
-            )
-
-            return False
-
-        # ======================================
-        # 🤖 CAPTCHA REQUIRED
-        # ======================================
-
-        captcha = await CaptchaManager.is_required(
-            chat_id
-        )
-
-        if captcha:
-
-            await send_captcha(chat_id)
-
-            return False
-
-        # ======================================
-        # 🚫 SPAM DETECTION
-        # ======================================
-
-        spam_ok = await AntiSpam.check(
-            chat_id
-        )
-
-        if not spam_ok:
-
-            logger.warning(
-
-                "spam_detected",
-
-                extra={
-                    "chat_id": chat_id
-                }
-            )
-
-            await AbuseDetector.flag(
-                chat_id
-            )
-
-            await FraudDetector.flag(
-
-                chat_id,
-
-                severity=5
-            )
-
-            return False
-
-        # ======================================
-        # 🤖 BOT DETECTION
-        # ======================================
-
-        bot_ok = await AntiBot.check(
-            chat_id
-        )
-
-        if not bot_ok:
-
-            logger.warning(
-
-                "bot_detected",
-
-                extra={
-                    "chat_id": chat_id
-                }
-            )
-
-            await AbuseDetector.flag(
-                chat_id
-            )
-
-            await FraudDetector.flag(
-
-                chat_id,
-
-                severity=10
-            )
-
-            return False
-
-        # ======================================
-        # 🚫 ABUSE DETECTION
-        # ======================================
-
-        abusive = await AbuseDetector.is_abusive(
-            chat_id
-        )
-
-        if abusive:
-
-            logger.warning(
-
-                "abusive_user_detected",
-
-                extra={
-                    "chat_id": chat_id
-                }
-            )
-
-            await BanManager.ban(
-
-                chat_id,
-
-                ttl=86400
-            )
-
-            return False
-
-        # ======================================
-        # ✅ SAFE
+        # TEMPORARY:
+        # Security system disabled
         # ======================================
 
         return True
