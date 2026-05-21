@@ -1,13 +1,17 @@
-#=============================
-#  Burst Protection
-#=============================
+# ==============================================
+# 🚦 TOKEN BUCKET LIMITER
+# ==============================================
 
 import time
 
 from app.core.redis_client import (
-    redis_client
+    redis_client,
+    memory_storage
 )
 
+# ==============================================
+# 🚦 TOKEN BUCKET
+# ==============================================
 
 class TokenBucket:
 
@@ -16,72 +20,103 @@ class TokenBucket:
 
         key: str,
 
-        capacity: int = 20,
+        capacity: int = 5,
 
-        refill_rate: int = 1
+        refill_rate: float = 1.0
+
     ) -> bool:
-
-        redis_key = f"bucket:{key}"
 
         now = time.time()
 
-        bucket = redis_client.hgetall(redis_key)
+        redis_key = f"bucket:{key}"
 
-        # =====================================
-        # INIT
-        # =====================================
+        # ======================================
+        # 🔴 REDIS MODE
+        # ======================================
 
-        if not bucket:
+        if redis_client:
 
-            redis_client.hset(redis_key, mapping={
+            bucket = redis_client.hgetall(redis_key)
 
-                "tokens": capacity,
+            if not bucket:
 
-                "last": now
-            })
+                tokens = capacity
+                last_refill = now
+
+            else:
+
+                tokens = float(bucket["tokens"])
+                last_refill = float(bucket["last_refill"])
+
+            # refill
+            elapsed = now - last_refill
+
+            tokens = min(
+
+                capacity,
+
+                tokens + elapsed * refill_rate
+            )
+
+            if tokens < 1:
+
+                return False
+
+            tokens -= 1
+
+            redis_client.hset(
+
+                redis_key,
+
+                mapping={
+
+                    "tokens": tokens,
+
+                    "last_refill": now
+                }
+            )
 
             redis_client.expire(redis_key, 3600)
 
             return True
 
-        tokens = float(bucket["tokens"])
+        # ======================================
+        # 🧠 MEMORY FALLBACK
+        # ======================================
 
-        last = float(bucket["last"])
+        bucket = memory_storage.get(redis_key)
 
-        # =====================================
-        # REFILL
-        # =====================================
+        if not bucket:
 
-        elapsed = now - last
+            tokens = capacity
+            last_refill = now
 
-        refill = elapsed * refill_rate
+        else:
+
+            tokens = bucket["tokens"]
+            last_refill = bucket["last_refill"]
+
+        # refill
+        elapsed = now - last_refill
 
         tokens = min(
 
             capacity,
 
-            tokens + refill
+            tokens + elapsed * refill_rate
         )
-
-        # =====================================
-        # BLOCK
-        # =====================================
 
         if tokens < 1:
 
             return False
 
-        # =====================================
-        # CONSUME
-        # =====================================
-
         tokens -= 1
 
-        redis_client.hset(redis_key, mapping={
+        memory_storage[redis_key] = {
 
             "tokens": tokens,
 
-            "last": now
-        })
+            "last_refill": now
+        }
 
         return True
