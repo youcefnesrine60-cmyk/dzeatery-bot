@@ -6,8 +6,7 @@ class GatewayMiddleware:
 
     @staticmethod
     async def process(
-        chat_id: int,
-        text: str
+        chat_id: int
     ) -> bool:
 
         # ======================================
