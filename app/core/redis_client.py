@@ -3,10 +3,17 @@
 # ==============================================
 
 import os
-
 import redis
 
+from dotenv import load_dotenv
+
 from app.core.logger import logger
+
+# ==============================================
+# 🌍 LOAD ENV
+# ==============================================
+
+load_dotenv()
 
 # ==============================================
 # 🌍 REDIS URL
@@ -15,24 +22,32 @@ from app.core.logger import logger
 REDIS_URL = os.getenv("REDIS_URL")
 
 # ==============================================
-# 🚫 SAFETY CHECK
+# 🧠 MEMORY FALLBACK
 # ==============================================
 
-if not REDIS_URL:
-
-    raise ValueError(
-        "REDIS_URL environment variable is missing."
-    )
+memory_storage = {}
 
 # ==============================================
 # 🔌 CONNECT REDIS
 # ==============================================
 
-redis_client = redis.from_url(
+if REDIS_URL:
 
-    REDIS_URL,
+    redis_client = redis.from_url(
 
-    decode_responses=True
-)
+        REDIS_URL,
 
-logger.info("Redis connected successfully.")
+        decode_responses=True
+    )
+
+    logger.info(
+        "Redis connected successfully."
+    )
+
+else:
+
+    redis_client = None
+
+    logger.warning(
+        "REDIS_URL not found. Using memory storage."
+    )

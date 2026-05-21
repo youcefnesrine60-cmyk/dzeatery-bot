@@ -5,7 +5,8 @@
 import json
 
 from app.core.redis_client import (
-    redis_client
+    redis_client,
+    memory_storage
 )
 
 from app.core.logger import (
@@ -20,34 +21,27 @@ def get_state(
     chat_id: int
 ) -> dict | None:
 
-    data = redis_client.get(
+    # ==========================================
+    # 🔴 REDIS
+    # ==========================================
 
-        f"user:{chat_id}"
-    )
+    if redis_client:
 
-    if data:
-
-        logger.info(
-
-            f"Retrieving state for user {chat_id}",
-
-            extra={
-                "chat_id": chat_id
-            }
+        data = redis_client.get(
+            f"user:{chat_id}"
         )
 
-        return json.loads(data)
+        if data:
 
-    logger.warning(
+            return json.loads(data)
 
-        f"No state found for user {chat_id}",
+        return None
 
-        extra={
-            "chat_id": chat_id
-        }
-    )
+    # ==========================================
+    # 🧠 MEMORY
+    # ==========================================
 
-    return None
+    return memory_storage.get(chat_id)
 
 # ==============================================
 # 💾 SET STATE
@@ -63,17 +57,30 @@ def set_state(
         f"Setting state for user {chat_id}",
 
         extra={
-            "chat_id": chat_id,
-            "state": state
+            "chat_id": chat_id
         }
     )
 
-    redis_client.set(
+    # ==========================================
+    # 🔴 REDIS
+    # ==========================================
 
-        f"user:{chat_id}",
+    if redis_client:
 
-        json.dumps(state)
-    )
+        redis_client.set(
+
+            f"user:{chat_id}",
+
+            json.dumps(state)
+        )
+
+        return
+
+    # ==========================================
+    # 🧠 MEMORY
+    # ==========================================
+
+    memory_storage[chat_id] = state
 
 # ==============================================
 # 🗑️ DELETE STATE
@@ -83,16 +90,20 @@ def delete_state(
     chat_id: int
 ) -> None:
 
-    logger.info(
+    # ==========================================
+    # 🔴 REDIS
+    # ==========================================
 
-        f"Deleting state for user {chat_id}",
+    if redis_client:
 
-        extra={
-            "chat_id": chat_id
-        }
-    )
+        redis_client.delete(
+            f"user:{chat_id}"
+        )
 
-    redis_client.delete(
+        return
 
-        f"user:{chat_id}"
-    )
+    # ==========================================
+    # 🧠 MEMORY
+    # ==========================================
+
+    memory_storage.pop(chat_id, None)
