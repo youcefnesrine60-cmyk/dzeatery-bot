@@ -1,4 +1,10 @@
-from app.core.router_instance import router
+# ==============================================
+# 📌 CUSTOMER ROUTES
+# ==============================================
+
+from app.core.router_instance import (
+    router
+)
 
 from app.handlers.callbacks.customer.restaurant_list import (
     customer_callback
@@ -9,13 +15,13 @@ from app.handlers.callbacks.customer.restaurant_details import (
 )
 
 # ==============================================
-# 📌 REGISTER CUSTOMER ROUTES
+# 🚀 REGISTER CUSTOMER ROUTES
 # ==============================================
 
-def register_customer_routes():
+def register_customer_routes() -> None:
 
     # ==========================================
-    # CUSTOMER ENTRY
+    # 👤 CUSTOMER ENTRY
     # ==========================================
 
     router.register(
@@ -26,7 +32,7 @@ def register_customer_routes():
     )
 
     # ==========================================
-    # RESTAURANT DETAILS
+    # 🍔 RESTAURANT DETAILS
     # ==========================================
 
     router.register(
