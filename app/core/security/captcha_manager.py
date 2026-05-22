@@ -7,6 +7,9 @@ from app.core.redis_client import (
     redis_client
 )
 
+from app.core.logger import (
+    logger
+)
 
 class CaptchaManager:
 
@@ -28,21 +31,26 @@ class CaptchaManager:
         answer: str
     ) -> None:
 
+        if not redis_client:
+
+            logger.warning(
+                "Redis client is not initialized",
+                
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
+
         redis_client.setex(
-
             f"{cls.PREFIX}:{chat_id}",
-
             300,
-
             "1"
         )
 
         redis_client.setex(
-
             f"{cls.ANSWER_PREFIX}:{chat_id}",
-
             300,
-
             answer
         )
 
@@ -55,6 +63,15 @@ class CaptchaManager:
         cls: type, 
         chat_id: int
     ) -> bool:
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return False
 
         return redis_client.exists(
 
@@ -76,6 +93,15 @@ class CaptchaManager:
         user_answer: str
     ) -> bool:
 
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return False
+
         saved = redis_client.get(
 
             f"{cls.ANSWER_PREFIX}:{chat_id}"
@@ -92,6 +118,15 @@ class CaptchaManager:
         cls: type, 
         chat_id: int
     ) -> None:
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
 
         redis_client.delete(
 

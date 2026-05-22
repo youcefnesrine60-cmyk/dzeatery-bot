@@ -35,6 +35,15 @@ class AbuseDetector:
 
         score: int = 1
     ) -> int:
+        
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return 0
 
         key = f"{cls.PREFIX}:{chat_id}"
 
@@ -76,6 +85,15 @@ class AbuseDetector:
 
         chat_id: int
     ) -> bool:
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return False
 
         key = f"{cls.PREFIX}:{chat_id}"
 

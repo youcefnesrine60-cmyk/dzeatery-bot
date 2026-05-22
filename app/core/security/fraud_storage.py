@@ -6,6 +6,10 @@ from app.core.redis_client import (
     redis_client
 )
 
+from app.core.logger import (
+    logger
+)
+
 class FraudStorage:
 
     PREFIX = "fraud"
@@ -19,6 +23,15 @@ class FraudStorage:
 
         score: int
     ) -> None:
+        
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
 
         key = f"{cls.PREFIX}:{chat_id}"
 
@@ -33,6 +46,15 @@ class FraudStorage:
 
         chat_id: int
     ) -> int:
+        
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return 0
 
         key = f"{cls.PREFIX}:{chat_id}"
 
@@ -47,6 +69,15 @@ class FraudStorage:
 
         chat_id: int
     ) -> None:
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
 
         redis_client.delete(
 

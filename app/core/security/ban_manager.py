@@ -31,6 +31,15 @@ class BanManager:
 
         ttl: int = 3600
     ) -> None:
+        
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
 
         redis_client.setex(
 
@@ -63,6 +72,15 @@ class BanManager:
         chat_id: int
     ) -> None:
 
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return
+
         redis_client.delete(
 
             f"{cls.PREFIX}:{chat_id}"
@@ -88,6 +106,15 @@ class BanManager:
 
         chat_id: int
     ) -> bool:
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return False
 
         banned = redis_client.exists(
 

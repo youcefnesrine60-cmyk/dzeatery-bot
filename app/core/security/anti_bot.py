@@ -15,6 +15,9 @@ from app.core.limiter.sliding_window import (
     SlidingWindowLimiter
 )
 
+from app.core.logger import (
+    logger
+)
 
 class AntiBot:
 
@@ -47,6 +50,12 @@ class AntiBot:
 
         if not allowed:
 
+            logger.warning(
+                "burst_detected",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
             return False
 
         # ======================================
@@ -56,6 +65,15 @@ class AntiBot:
         key = f"{cls.PREFIX}:human:{chat_id}"
 
         now = time.time()
+
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+            return True
 
         last = redis_client.get(key)
 
@@ -69,6 +87,13 @@ class AntiBot:
 
         if diff < cls.MIN_HUMAN_DELAY:
 
+            logger.warning(
+                "human_speed_detected",
+                extra={
+                    "chat_id": chat_id,
+                    "delay": diff
+                }
+            )
             return False
 
         return True

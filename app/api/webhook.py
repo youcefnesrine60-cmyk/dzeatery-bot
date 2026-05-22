@@ -27,6 +27,10 @@ from app.core.security.risk_engine import (
     RiskEngine
 )
 
+from app.core.logger import (
+    logger
+)
+
 # ==============================================
 # 🚀 API ROUTER
 # ==============================================
@@ -66,13 +70,32 @@ async def telegram_webhook(
 
     update_type = "unknown"
 
+    text = None
+
     if "message" in data:
 
         chat_id = data["message"]["chat"]["id"]
 
+        logger.info(
+            "received_message",
+            extra={
+                "chat_id": data["message"]["chat"]["id"],
+                "text": data["message"].get("text", "")
+            }
+        )
+
+        text = data["message"].get("text")
+
         update_type = "message"
 
     elif "callback_query" in data:
+
+        logger.info(
+            "received_callback",
+            extra={
+                "chat_id": data["callback_query"]["message"]["chat"]["id"]
+            }
+        )
 
         chat_id = data["callback_query"]["message"]["chat"]["id"]
 
@@ -83,6 +106,14 @@ async def telegram_webhook(
     # ======================================
 
     if chat_id:
+
+        logger.info(
+            "logging_request",
+            extra={
+                "chat_id": chat_id,
+                "update_type": update_type
+            }
+        )
 
         await RequestLogger.log(
 
@@ -97,12 +128,26 @@ async def telegram_webhook(
 
     if chat_id:
 
+        logger.info(
+            "gateway_check",
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         allowed = await GatewayMiddleware.process(
 
             chat_id
         )
 
         if not allowed:
+
+            logger.warning(
+                "gateway_blocked",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
 
             return {
                 "ok": False
@@ -114,12 +159,29 @@ async def telegram_webhook(
 
     if chat_id:
 
+        logger.info(
+            "risk_analysis",
+            extra={
+                "chat_id": chat_id,
+                "text": text
+            }
+        )
+
         safe = await RiskEngine.analyze(
 
-            chat_id
+            chat_id,
+            text
         )
 
         if not safe:
+
+            logger.warning(
+                "risk_blocked",
+                extra={
+                    "chat_id": chat_id,
+                    "text": text
+                }
+            )
 
             return {
                 "ok": False
@@ -128,6 +190,13 @@ async def telegram_webhook(
     # ======================================
     # 🚀 DISPATCH UPDATE
     # ======================================
+
+    logger.info(
+        "dispatching_update",
+        extra={
+            "chat_id": chat_id
+        }
+    )
 
     await dispatch_update(data)
 

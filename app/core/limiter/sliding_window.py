@@ -9,6 +9,10 @@ from app.core.redis_client import (
     redis_client
 )
 
+from app.core.logger import (
+    logger
+)
+
 # ==========================================
 # 🚫 LUA SLIDING WINDOW LIMITER
 # ==========================================
@@ -76,6 +80,15 @@ class SlidingWindowLimiter:
 
         window: int
     ) -> bool:
+        
+        if not redis_client:
+            logger.warning(
+                "Redis client is not initialized",
+                extra={
+                    "key": key
+                }
+            )
+            return True
 
         now = time.time()
 
