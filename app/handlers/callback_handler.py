@@ -6,7 +6,7 @@ from app.core.router_instance import (
     router
 )
 
-from app.services.telegram_service import (
+from app.services.telegram import (
     answer_callback
 )
 

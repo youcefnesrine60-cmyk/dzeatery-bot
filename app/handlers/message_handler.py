@@ -5,7 +5,7 @@
 # توجيه الرسائل حسب الـ state
 #=================================================
 
-from app.services.telegram_service import (
+from app.services.telegram import (
     delete_message
 )
 

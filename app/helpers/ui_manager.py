@@ -1,8 +1,11 @@
-from app.services.telegram_service import (
+from app.services.telegram import (
     send_message,
     edit_message
 )
 
+from app.core.logger import (
+    logger
+)
 
 class UIManager:
 
@@ -21,6 +24,14 @@ class UIManager:
 
         if message_id:
 
+            logger.info(
+                "editing_existing_message",
+                extra={
+                    "chat_id": chat_id,
+                    "message_id": message_id
+                }
+            )
+
             return await edit_message(
 
                 chat_id,
@@ -32,6 +43,13 @@ class UIManager:
         # ==================================
         # SEND NEW MESSAGE
         # ==================================
+
+        logger.info(
+            "sending_new_message",
+            extra={
+                "chat_id": chat_id
+            }
+        )
 
         return await send_message(
 
