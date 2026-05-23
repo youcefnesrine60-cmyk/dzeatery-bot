@@ -13,7 +13,7 @@ from app.core.logger import (
 )
 
 # ==============================================
-# 🌍 LOAD ENV
+# 🌍 LOAD ENVIRONMENT VARIABLES
 # ==============================================
 
 load_dotenv()
@@ -27,19 +27,20 @@ DATABASE_URL = os.getenv(
 )
 
 # ==============================================
-# 🔌 CONNECTION
+# 🔌 GLOBAL CONNECTION
 # ==============================================
 
 conn = None
 
+# ==============================================
+# 🚀 CONNECT TO POSTGRESQL
+# ==============================================
+
 try:
 
     conn = psycopg2.connect(
-
         DATABASE_URL
     )
-
-    conn.autocommit = True
 
     logger.info(
         "PostgreSQL connected successfully."
@@ -52,15 +53,29 @@ except Exception as e:
     )
 
 # ==============================================
-# 📥 GET CURSOR
+# 📥 GET DATABASE CURSOR
 # ==============================================
 
 def get_cursor() -> psycopg2.extensions.cursor:
 
-    if not conn:
+    global conn
 
-        raise Exception(
-            "PostgreSQL connection is not available."
+    # ==========================================
+    # 🔄 RECONNECT IF CONNECTION CLOSED
+    # ==========================================
+
+    if conn is None or conn.closed:
+
+        logger.warning(
+            "PostgreSQL connection lost. Reconnecting..."
+        )
+
+        conn = psycopg2.connect(
+            DATABASE_URL
+        )
+
+        logger.info(
+            "PostgreSQL reconnected successfully."
         )
 
     logger.info(
@@ -70,7 +85,7 @@ def get_cursor() -> psycopg2.extensions.cursor:
     return conn.cursor()
 
 # ==============================================
-# ✅ COMMIT
+# ✅ COMMIT TRANSACTION
 # ==============================================
 
 def commit() -> None:
@@ -86,7 +101,7 @@ def commit() -> None:
     conn.commit()
 
 # ==============================================
-# ❌ ROLLBACK
+# ❌ ROLLBACK TRANSACTION
 # ==============================================
 
 def rollback() -> None:
@@ -102,7 +117,7 @@ def rollback() -> None:
     conn.rollback()
 
 # ==============================================
-# ❌ CLOSE CONNECTION
+# 🔒 CLOSE CONNECTION
 # ==============================================
 
 def close_connection() -> None:

@@ -4,7 +4,8 @@
 
 from app.core.db import (
     get_cursor,
-    commit
+    commit,
+    rollback
 )
 
 from app.core.logger import (
@@ -37,7 +38,9 @@ def get_all_restaurants() -> list[dict]:
     rows = cur.fetchall()
 
     logger.info(
+
         "Fetched all restaurants",
+
         extra={
             "count": len(rows)
         }
@@ -65,7 +68,7 @@ def get_all_restaurants() -> list[dict]:
 
 
 # ==============================================
-# 🔍 EXISTS
+# 🔍 CHECK RESTAURANT EXISTS
 # ==============================================
 
 def exists(name: str) -> bool:
@@ -81,7 +84,9 @@ def exists(name: str) -> bool:
     result = cur.fetchone()
 
     logger.info(
+
         "Checked restaurant existence",
+
         extra={
             "name": name,
             "exists": result is not None
@@ -99,38 +104,67 @@ def save(data: dict) -> None:
 
     cur = get_cursor()
 
-    cur.execute("""
-        INSERT INTO restaurants
-        (
-            name,
-            owner,
-            type,
-            phone,
-            wilaya,
-            lat,
-            lng,
-            chat_id
+    try:
+
+        cur.execute("""
+            INSERT INTO restaurants
+            (
+                name,
+                owner,
+                type,
+                phone,
+                wilaya,
+                lat,
+                lng,
+                chat_id
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            data["name"],
+            data["owner"],
+            data["type"],
+            data["phone"],
+            data["wilaya"],
+            data["lat"],
+            data["lng"],
+            data["chat_id"]
+        ))
+
+        # ======================================
+        # 💾 SAVE CHANGES
+        # ======================================
+
+        commit()
+
+        logger.info(
+
+            "Restaurant saved successfully",
+
+            extra={
+                "restaurant": data["name"],
+                "chat_id": data["chat_id"]
+            }
         )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-    """, (
-        data["restaurant"],
-        data["owner"],
-        data["type"],
-        data["phone"],
-        data["wilaya"],
-        data["lat"],
-        data["lng"],
-        data["chat_id"]
-    ))
 
-    commit()
+    except Exception as e:
 
-    logger.info(
-        "Restaurant saved",
-        extra={
-            "restaurant": data["restaurant"]
-        }
-    )
+        # ======================================
+        # 🔄 ROLLBACK ON FAILURE
+        # ======================================
+
+        rollback()
+
+        logger.error(
+
+            "restaurant_save_failed",
+
+            extra={
+                "error": str(e),
+                "restaurant": data.get("name")
+            }
+        )
+
+        raise
 
 
 # ==============================================
@@ -162,10 +196,16 @@ def get_restaurant_by_id(
 
     row = cur.fetchone()
 
+    # ==========================================
+    # 🚫 NOT FOUND
+    # ==========================================
+
     if not row:
 
         logger.warning(
+
             "Restaurant not found",
+
             extra={
                 "restaurant_id": restaurant_id
             }
@@ -173,8 +213,14 @@ def get_restaurant_by_id(
 
         return None
 
+    # ==========================================
+    # ✅ FOUND
+    # ==========================================
+
     logger.info(
+
         "Restaurant found",
+
         extra={
             "restaurant_id": restaurant_id
         }
