@@ -1,21 +1,75 @@
-from app.core.db import get_cursor
+# ==============================================
+# 🍽️ RESTAURANT REPOSITORY
+# ==============================================
 
+from app.core.db import (
+    get_cursor,
+    commit
+)
 
-# ================= GET ALL =================
-def get_all_restaurants() -> list[str]:
+from app.core.logger import (
+    logger
+)
+
+# ==============================================
+# 📥 GET ALL RESTAURANTS
+# ==============================================
+
+def get_all_restaurants() -> list[dict]:
+
     cur = get_cursor()
 
     cur.execute("""
-        SELECT name
+        SELECT
+            id,
+            name,
+            owner,
+            type,
+            phone,
+            wilaya,
+            lat,
+            lng,
+            chat_id
         FROM restaurants
         ORDER BY id DESC
     """)
 
-    return [r[0] for r in cur.fetchall()]
+    rows = cur.fetchall()
+
+    logger.info(
+        "Fetched all restaurants",
+        extra={
+            "count": len(rows)
+        }
+    )
+
+    restaurants = []
+
+    for row in rows:
+
+        restaurants.append({
+
+            "id": row[0],
+            "name": row[1],
+            "owner": row[2],
+            "type": row[3],
+            "phone": row[4],
+            "wilaya": row[5],
+            "lat": row[6],
+            "lng": row[7],
+            "chat_id": row[8]
+
+        })
+
+    return restaurants
 
 
-# ================= EXISTS =================
+# ==============================================
+# 🔍 EXISTS
+# ==============================================
+
 def exists(name: str) -> bool:
+
     cur = get_cursor()
 
     cur.execute("""
@@ -24,11 +78,25 @@ def exists(name: str) -> bool:
         WHERE LOWER(name)=LOWER(%s)
     """, (name,))
 
-    return cur.fetchone() is not None
+    result = cur.fetchone()
+
+    logger.info(
+        "Checked restaurant existence",
+        extra={
+            "name": name,
+            "exists": result is not None
+        }
+    )
+
+    return result is not None
 
 
-# ================= SAVE =================
+# ==============================================
+# 💾 SAVE RESTAURANT
+# ==============================================
+
 def save(data: dict) -> None:
+
     cur = get_cursor()
 
     cur.execute("""
@@ -55,6 +123,16 @@ def save(data: dict) -> None:
         data["chat_id"]
     ))
 
+    commit()
+
+    logger.info(
+        "Restaurant saved",
+        extra={
+            "restaurant": data["restaurant"]
+        }
+    )
+
+
 # ==============================================
 # 🔍 GET RESTAURANT BY ID
 # ==============================================
@@ -65,12 +143,53 @@ def get_restaurant_by_id(
 
 ) -> dict | None:
 
-    restaurants = get_all_restaurants()
+    cur = get_cursor()
 
-    for restaurant in restaurants:
+    cur.execute("""
+        SELECT
+            id,
+            name,
+            owner,
+            type,
+            phone,
+            wilaya,
+            lat,
+            lng,
+            chat_id
+        FROM restaurants
+        WHERE id=%s
+    """, (restaurant_id,))
 
-        if restaurant["id"] == restaurant_id:
+    row = cur.fetchone()
 
-            return restaurant
+    if not row:
 
-    return None
+        logger.warning(
+            "Restaurant not found",
+            extra={
+                "restaurant_id": restaurant_id
+            }
+        )
+
+        return None
+
+    logger.info(
+        "Restaurant found",
+        extra={
+            "restaurant_id": restaurant_id
+        }
+    )
+
+    return {
+
+        "id": row[0],
+        "name": row[1],
+        "owner": row[2],
+        "type": row[3],
+        "phone": row[4],
+        "wilaya": row[5],
+        "lat": row[6],
+        "lng": row[7],
+        "chat_id": row[8]
+
+    }
