@@ -1,5 +1,6 @@
-from app.services.validation_service import (
-    valid_phone
+from app.services.validation import (
+    validate_phone,
+    normalize_phone
 )
 
 from app.helpers.state_transition import (
@@ -37,7 +38,9 @@ async def handle_phone_step(
 
 ) -> None:
 
-    if not valid_phone(text):
+    normalized_phone = normalize_phone(text)
+
+    if not validate_phone(normalized_phone):
 
         logger.warning(
 
@@ -59,7 +62,7 @@ async def handle_phone_step(
 
         return
 
-    state["phone"] = text
+    state["phone"] = normalized_phone
 
     success = await transition_to(
 
@@ -71,7 +74,26 @@ async def handle_phone_step(
     )
 
     if not success:
+
+        logger.error(
+
+            "phone_step_transition_failed",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return
+
+    logger.info(
+
+        "phone_step_transition_success",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
 
     await UIManager.update(
 

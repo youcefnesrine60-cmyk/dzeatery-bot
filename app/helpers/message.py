@@ -1,42 +1,120 @@
-from app.views.ui import (
-    back_ui
-)
+# =====================================================
+# 🧠 UI HELPERS
+# =====================================================
 
-from app.views.texts import(
-    WELCOME_MSG,
-    RESTAU_NAME,
-    WILLAYA_NAME
-)
-from app.views.ui import (
-    main_menu_ui
+from app.core.logger import (
+    logger
 )
 
 from app.helpers.ui_manager import (
     UIManager
 )
 
+from app.views.texts import (
+    RESTAU_NAME,
+    WELCOME_MSG,
+    WILLAYA_NAME
+)
+
+from app.views.ui import (
+    back_ui,
+    main_menu_ui
+)
+
 # =====================================================
-# 🧠 HELPERS
+# 📤 GENERIC SCREEN SENDER
 # =====================================================
 
-async def send_main_menu(chat_id):
-    await UIManager.update(
-        chat_id,
-        WELCOME_MSG,
-        main_menu_ui()
+async def send_screen(
+
+    chat_id: int,
+
+    text: str,
+
+    reply_markup: dict,
+
+    screen_name: str
+
+) -> None:
+
+    logger.info(
+
+        "sending_screen",
+
+        extra={
+            "chat_id": chat_id,
+            "screen": screen_name
+        }
     )
 
-async def send_restau_name(chat_id):
     await UIManager.update(
+
         chat_id,
-        RESTAU_NAME,
-        back_ui()
+
+        text,
+
+        reply_markup
     )
 
-async def send_willaya_name(chat_id):
-    await UIManager.update(
-        chat_id,
-        WILLAYA_NAME,
-        back_ui()
+# =====================================================
+# 🏠 MAIN MENU
+# =====================================================
+
+async def send_main_menu(
+
+    chat_id: int
+
+) -> None:
+
+    await send_screen(
+
+        chat_id=chat_id,
+
+        text=WELCOME_MSG,
+
+        reply_markup=main_menu_ui(),
+
+        screen_name="main_menu"
     )
 
+# =====================================================
+# 🍽️ RESTAURANT NAME
+# =====================================================
+
+async def send_restaurant_name(
+
+    chat_id: int
+
+) -> None:
+
+    await send_screen(
+
+        chat_id=chat_id,
+
+        text=RESTAU_NAME,
+
+        reply_markup=back_ui(),
+
+        screen_name="restaurant_name"
+    )
+
+# =====================================================
+# 🗺️ WILLAYA NAME
+# =====================================================
+
+async def send_willaya_name(
+
+    chat_id: int
+
+) -> None:
+
+    await send_screen(
+
+        chat_id=chat_id,
+
+        text=WILLAYA_NAME,
+
+        reply_markup=back_ui(),
+
+        screen_name="willaya_name"
+    )

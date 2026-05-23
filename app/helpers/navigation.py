@@ -2,13 +2,15 @@
 # 🔙 NAVIGATION HELPER
 # ==============================================
 
-from app.repositories.state_repo import (
-    get_state,
-    set_state
-)
+from typing import Any
 
 from app.core.logger import (
     logger
+)
+
+from app.repositories.state_repo import (
+    get_state,
+    set_state
 )
 
 from app.states.owner_states import (
@@ -17,10 +19,9 @@ from app.states.owner_states import (
 
 # ==============================================
 # 🧹 STEP CLEANUP MAP
-# تنظيف البيانات حسب المرحلة
 # ==============================================
 
-STEP_CLEANUP = {
+STEP_CLEANUP: dict[str, list[str]] = {
 
     OwnerStates.NAME: [
 
@@ -82,17 +83,17 @@ def go_back(
 
 ) -> str | None:
 
-    state = get_state(chat_id)
+    state: dict[str, Any] | None = get_state(chat_id)
 
     # ==========================================
-    # 🚫 NO STATE
+    # 🚫 INVALID STATE
     # ==========================================
 
-    if not state:
+    if not state or not isinstance(state, dict):
 
         logger.warning(
 
-            "navigation_state_missing",
+            "navigation_invalid_state",
 
             extra={
                 "chat_id": chat_id
@@ -102,6 +103,23 @@ def go_back(
         return None
 
     history = state.get("history", [])
+
+    # ==========================================
+    # 🚫 INVALID HISTORY
+    # ==========================================
+
+    if not isinstance(history, list):
+
+        logger.warning(
+
+            "navigation_invalid_history",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        return None
 
     # ==========================================
     # 🚫 EMPTY HISTORY
@@ -127,6 +145,12 @@ def go_back(
     previous_step = history.pop()
 
     # ==========================================
+    # 💾 SAVE UPDATED HISTORY
+    # ==========================================
+
+    state["history"] = history
+
+    # ==========================================
     # 🧹 CLEAN RELATED DATA
     # ==========================================
 
@@ -135,12 +159,21 @@ def go_back(
         state.pop(key, None)
 
     # ==========================================
-    # 💾 UPDATE STATE
+    # 💾 UPDATE STEP
     # ==========================================
 
     state["step"] = previous_step
 
-    set_state(chat_id, state)
+    # ==========================================
+    # 💾 SAVE STATE
+    # ==========================================
+
+    set_state(
+
+        chat_id,
+
+        state
+    )
 
     logger.info(
 
@@ -148,7 +181,8 @@ def go_back(
 
         extra={
             "chat_id": chat_id,
-            "step": previous_step
+            "step": previous_step,
+            "history_size": len(history)
         }
     )
 

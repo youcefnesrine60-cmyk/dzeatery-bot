@@ -7,27 +7,55 @@ from app.core.logger import (
 )
 
 # ==============================================
+# 🔘 BUTTON HELPER
+# ==============================================
+
+def button(
+
+    text: str,
+
+    callback: str
+
+) -> dict:
+
+    return {
+
+        "text": text,
+        "callback_data": callback
+    }
+
+
+# ==============================================
 # 🏠 MAIN MENU
 # ==============================================
 
 def main_menu_ui() -> dict:
 
-    logger.info("display_main_menu")
+    logger.info(
+        "display_main_menu"
+    )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "🍽️ زبون مطعم",
-                "callback_data": "customer"
-            }],
+            [
+                button(
+                    "🍽️ زبون مطعم",
+                    "customer"
+                )
+            ],
 
-            [{
-                "text": "🏪 صاحب محل",
-                "callback_data": "owner"
-            }]
+            [
+                button(
+                    "🏪 صاحب محل",
+                    "owner"
+                )
+            ]
+
         ]
     }
+
 
 # ==============================================
 # ✅ CONSENT UI
@@ -48,20 +76,38 @@ def consent_ui(
         }
     )
 
-    return {
+    keyboard = {
+
         "inline_keyboard": [
 
-            [{
-                "text": "✅ أوافق",
-                "callback_data": f"consent_{role}"
-            }],
+            [
+                button(
+                    "✅ أوافق",
+                    f"consent_{role}"
+                )
+            ],
 
-            [{
-                "text": "❌ لا أوافق",
-                "callback_data": "decline"
-            }]
+            [
+                button(
+                    "❌ لا أوافق",
+                    "decline"
+                )
+            ]
+
         ]
     }
+
+    logger.info(
+
+        "consent_ui_generated",
+
+        extra={
+            "keyboard": keyboard
+        }
+    )
+
+    return keyboard
+
 
 # ==============================================
 # 📜 CONSENT TEXT
@@ -69,7 +115,9 @@ def consent_ui(
 
 def consent_text() -> str:
 
-    logger.info("display_consent_text")
+    logger.info(
+        "display_consent_text"
+    )
 
     return (
 
@@ -91,23 +139,31 @@ def consent_text() -> str:
         "⚠️ بالضغط على (أوافق) فإنك تقبل هذه الشروط."
     )
 
+
 # ==============================================
 # 🔙 BACK UI
 # ==============================================
 
 def back_ui() -> dict:
 
-    logger.info("display_back_ui")
+    logger.info(
+        "display_back_ui"
+    )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "🔙 رجوع",
-                "callback_data": "back_step"
-            }]
+            [
+                button(
+                    "🔙 رجوع",
+                    "back_step"
+                )
+            ]
+
         ]
     }
+
 
 # ==============================================
 # 📍 LOCATION WEBAPP UI
@@ -115,25 +171,34 @@ def back_ui() -> dict:
 
 def location_webapp_ui() -> dict:
 
-    logger.info("display_location_webapp_ui")
+    logger.info(
+        "display_location_webapp_ui"
+    )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "📍 تحديد موقع المحل",
+            [
+                {
+                    "text": "📍 تحديد موقع المحل",
 
-                "web_app": {
-                    "url": "https://dzeatery.onrender.com/map"
+                    "web_app": {
+                        "url": "https://dzeatery.onrender.com/map"
+                    }
                 }
-            }],
+            ],
 
-            [{
-                "text": "🔙 رجوع",
-                "callback_data": "back_step"
-            }]
+            [
+                button(
+                    "🔙 رجوع",
+                    "back_step"
+                )
+            ]
+
         ]
     }
+
 
 # ==============================================
 # 🍽️ RESTAURANTS UI
@@ -141,7 +206,7 @@ def location_webapp_ui() -> dict:
 
 def restaurants_ui(
 
-    restaurants: list
+    restaurants: list[dict]
 
 ) -> dict:
 
@@ -154,28 +219,88 @@ def restaurants_ui(
         }
     )
 
+    # ==========================================
+    # 🚫 EMPTY LIST
+    # ==========================================
+
+    if not restaurants:
+
+        logger.warning(
+            "no_restaurants_found"
+        )
+
+        return {
+
+            "inline_keyboard": [
+
+                [
+                    button(
+                        "❌ لا توجد مطاعم",
+                        "noop"
+                    )
+                ],
+
+                [
+                    button(
+                        "🔙 رجوع",
+                        "back_main"
+                    )
+                ]
+
+            ]
+        }
+
+    # ==========================================
+    # 🍔 RESTAURANTS
+    # ==========================================
+
     buttons = []
 
     for restaurant in restaurants:
 
-        buttons.append([{
+        restaurant_name = restaurant.get(
+            "name",
+            "Unknown"
+        )
 
-            "text": f"🍔 {restaurant['name']}",
+        restaurant_id = restaurant.get(
+            "id",
+            0
+        )
 
-            "callback_data": f"rest_{restaurant['id']}"
-        }])
+        buttons.append(
 
-    buttons.append([{
+            [
 
-        "text": "🔙 رجوع",
+                button(
+                    f"🍔 {restaurant_name}",
+                    f"rest_{restaurant_id}"
+                )
 
-        "callback_data": "back_main"
-    }])
+            ]
+        )
+
+    # ==========================================
+    # 🔙 BACK BUTTON
+    # ==========================================
+
+    buttons.append(
+
+        [
+
+            button(
+                "🔙 رجوع",
+                "back_main"
+            )
+
+        ]
+    )
 
     return {
 
         "inline_keyboard": buttons
     }
+
 
 # ==============================================
 # 🍔 RESTAURANT ACTIONS UI
@@ -197,19 +322,26 @@ def restaurant_actions_ui(
     )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "📦 طلب",
-                "callback_data": f"order_{restaurant_id}"
-            }],
+            [
+                button(
+                    "📦 طلب",
+                    f"order_{restaurant_id}"
+                )
+            ],
 
-            [{
-                "text": "🔙 رجوع",
-                "callback_data": "show_restaurants"
-            }]
+            [
+                button(
+                    "🔙 رجوع",
+                    "show_restaurants"
+                )
+            ]
+
         ]
     }
+
 
 # ==============================================
 # 🍽️ RESTAURANT TYPES UI
@@ -217,52 +349,73 @@ def restaurant_actions_ui(
 
 def types_ui() -> dict:
 
-    logger.info("display_types_ui")
+    logger.info(
+        "display_types_ui"
+    )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "1- مطعم تقليدي",
-                "callback_data": "type_traditional"
-            }],
+            [
+                button(
+                    "1- مطعم تقليدي",
+                    "type_traditional"
+                )
+            ],
 
-            [{
-                "text": "2- Fast Food",
-                "callback_data": "type_fastfood"
-            }],
+            [
+                button(
+                    "2- Fast Food",
+                    "type_fastfood"
+                )
+            ],
 
-            [{
-                "text": "3- مشاوي",
-                "callback_data": "type_grill"
-            }],
+            [
+                button(
+                    "3- مشاوي",
+                    "type_grill"
+                )
+            ],
 
-            [{
-                "text": "4- مطعم فاخر",
-                "callback_data": "type_luxury"
-            }],
+            [
+                button(
+                    "4- مطعم فاخر",
+                    "type_luxury"
+                )
+            ],
 
-            [{
-                "text": "5- أكل شعبي",
-                "callback_data": "type_popular"
-            }],
+            [
+                button(
+                    "5- أكل شعبي",
+                    "type_popular"
+                )
+            ],
 
-            [{
-                "text": "6- مقهى 24 ساعة",
-                "callback_data": "type_cafe"
-            }],
+            [
+                button(
+                    "6- مقهى 24 ساعة",
+                    "type_cafe"
+                )
+            ],
 
-            [{
-                "text": "7- حلويات",
-                "callback_data": "type_sweets"
-            }],
+            [
+                button(
+                    "7- حلويات",
+                    "type_sweets"
+                )
+            ],
 
-            [{
-                "text": "🔙 رجوع",
-                "callback_data": "back_main"
-            }]
+            [
+                button(
+                    "🔙 رجوع",
+                    "back_main"
+                )
+            ]
+
         ]
     }
+
 
 # ==============================================
 # ✅ CONFIRM UI
@@ -270,19 +423,27 @@ def types_ui() -> dict:
 
 def confirm_ui() -> dict:
 
-    logger.info("display_confirm_ui")
+    logger.info(
+        "display_confirm_ui"
+    )
 
     return {
+
         "inline_keyboard": [
 
-            [{
-                "text": "✅ تأكيد التسجيل",
-                "callback_data": "confirm"
-            }],
+            [
+                button(
+                    "✅ تأكيد التسجيل",
+                    "confirm"
+                )
+            ],
 
-            [{
-                "text": "🔙 رجوع",
-                "callback_data": "back_main"
-            }]
+            [
+                button(
+                    "🔙 رجوع",
+                    "back_main"
+                )
+            ]
+
         ]
     }

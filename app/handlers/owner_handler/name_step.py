@@ -11,7 +11,7 @@ from app.helpers.ui_manager import (
 )
 
 from app.helpers.message import (
-    send_restau_name
+    send_restaurant_name
 )
 
 from app.states.owner_states import (
@@ -78,6 +78,25 @@ async def handle_name_step(
     )
 
     if not success:
-        return
 
-    await send_restau_name(chat_id)
+        logger.error(
+
+            "transition_failed",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        return
+    
+    logger.info(
+
+        "transition_success",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
+    await send_restaurant_name(chat_id)
