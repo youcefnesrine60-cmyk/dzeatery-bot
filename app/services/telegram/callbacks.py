@@ -2,7 +2,7 @@
 # ☑️ ANSWER CALLBACK
 # ============================================
 
-from app.core import (
+from app.core.logger import (
     logger
 )
 

@@ -2,7 +2,7 @@
 # 🔗 SET WEBHOOK
 # ============================================
 
-from venv import (
+from app.core.logger import (
     logger
 )
 
