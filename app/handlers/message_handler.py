@@ -59,6 +59,9 @@ from app.core.logger import (
 # =====================================================
 
 async def handle_message(
+        
+    *,
+    
     data: dict
 ) -> None:
     
@@ -73,13 +76,15 @@ async def handle_message(
     # ==============================================
 
     captcha_required = await CaptchaManager.is_required(
-        chat_id
+        chat_id = chat_id
     )
 
     if captcha_required:
 
         logger.info(
+
             "captcha_required",
+
             extra={
                 "chat_id": chat_id
             }
@@ -87,9 +92,9 @@ async def handle_message(
 
         solved = await handle_captcha(
 
-            chat_id,
+            chat_id = chat_id,
 
-            text
+            text = text
         )
 
         if not solved:
@@ -112,6 +117,7 @@ async def handle_message(
     if text == "/start":
 
         logger.info(
+
             "start_command",
 
             extra={
@@ -120,9 +126,12 @@ async def handle_message(
         )
 
         await UIManager.update(
-            chat_id, 
-            WELCOME_MESSAGE,
-            main_menu_ui()
+
+            chat_id = chat_id,
+
+            text = WELCOME_MESSAGE,
+
+            reply_markup = main_menu_ui()
         )
 
         return
@@ -133,35 +142,63 @@ async def handle_message(
 
     if text == "🔙 رجوع":
 
-        previous = go_back(chat_id)
+        previous = go_back(
+
+            chat_id = chat_id
+
+        )
 
         if not previous:
 
             logger.info(
+
                 "back_button_pressed",
+
                 extra={
+
                     "chat_id": chat_id
                 }
             )
 
             try:
-                delete_state(chat_id)
+
+                delete_state(
+                    chat_id = chat_id
+                )
+
                 logger.info(
+
                     "state_deleted_on_back",
+
                     extra={
                         "chat_id": chat_id
                     }
                 )
+
             except Exception as e:
+
                 logger.exception(
+
                     "state_cleanup_failed",
+
                     extra={
                         "chat_id": chat_id,
                         "error": str(e)
                     }
                 )
 
-            await send_main_menu(chat_id)
+            logger.info(
+
+                "no_previous_state",
+
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+
+            await send_main_menu(
+                chat_id = chat_id
+            )
 
         return
 
@@ -169,15 +206,21 @@ async def handle_message(
     # 🧠 USER STATE FLOW
     # =================================================
 
-    state = get_state(chat_id)
+    state = get_state(
+        chat_id = chat_id
+    )
 
     if not state:
 
         logger.info(
+
             "no_state_message",
+
             extra={
+
                 "chat_id": chat_id,
-                "text": text
+
+                "text_length": len(text)
             }
         )
         return
@@ -194,29 +237,45 @@ async def handle_message(
         OwnerStates.CONFIRM
     ]:
         logger.warning(
+
             "manual_text_in_button_step",
+
             extra={
+
                 "chat_id": chat_id,
+
                 "step": state.get("step"),
-                "text": text
+                
+                "text_length": len(text)
             }
         )
 
         await delete_message(
-            chat_id,
-            message["message_id"]
+
+            chat_id = chat_id,
+
+            message_id = message["message_id"]
         )
 
         logger.warning(
+
             "manual_text_in_button_step",
+
             extra={
+
                 "chat_id": chat_id
             }
         )
 
         await UIManager.update(
-            chat_id,
-            "❌ الرجاء استعمال الأزرار فقط."
+
+            chat_id = chat_id,
+
+            text = "❌ الرجاء استعمال الأزرار فقط.",
+
+            reply_markup = None,
+
+            message_id = message["message_id"]
         )
 
         return
@@ -227,9 +286,9 @@ async def handle_message(
 
     await StateDispatcher.dispatch(
 
-        chat_id,
+        chat_id = chat_id,
 
-        text,
+        text = text,
 
-        state
+        state = state
     )

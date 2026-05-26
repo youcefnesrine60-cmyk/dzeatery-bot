@@ -4,18 +4,14 @@
 
 from typing import Any
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
 
 from app.repositories.state_repo import (
     get_state,
     set_state
 )
 
-from app.states.owner_states import (
-    OwnerStates
-)
+from app.states.owner_states import OwnerStates
 
 # ==============================================
 # 🧹 STEP CLEANUP MAP
@@ -24,7 +20,6 @@ from app.states.owner_states import (
 STEP_CLEANUP: dict[str, list[str]] = {
 
     OwnerStates.NAME: [
-
         "owner",
         "restaurant",
         "wilaya",
@@ -34,8 +29,7 @@ STEP_CLEANUP: dict[str, list[str]] = {
         "phone"
     ],
 
-    OwnerStates.RESTAURANT_NAME: [
-
+    OwnerStates.RESTAURANT: [
         "restaurant",
         "wilaya",
         "lat",
@@ -45,7 +39,6 @@ STEP_CLEANUP: dict[str, list[str]] = {
     ],
 
     OwnerStates.WILAYA: [
-
         "wilaya",
         "lat",
         "lng",
@@ -54,7 +47,6 @@ STEP_CLEANUP: dict[str, list[str]] = {
     ],
 
     OwnerStates.LOCATION: [
-
         "lat",
         "lng",
         "type",
@@ -62,13 +54,11 @@ STEP_CLEANUP: dict[str, list[str]] = {
     ],
 
     OwnerStates.TYPE: [
-
         "type",
         "phone"
     ],
 
     OwnerStates.PHONE: [
-
         "phone"
     ]
 }
@@ -79,11 +69,16 @@ STEP_CLEANUP: dict[str, list[str]] = {
 
 def go_back(
 
+    *,
+
     chat_id: int
 
 ) -> str | None:
 
-    state: dict[str, Any] | None = get_state(chat_id)
+    state: dict[str, Any] | None = get_state(
+
+        chat_id = chat_id
+    )
 
     # ==========================================
     # 🚫 INVALID STATE
@@ -139,19 +134,15 @@ def go_back(
         return None
 
     # ==========================================
-    # 🔙 GET PREVIOUS STEP
+    # 🔙 PREVIOUS STEP
     # ==========================================
 
     previous_step = history.pop()
 
-    # ==========================================
-    # 💾 SAVE UPDATED HISTORY
-    # ==========================================
-
     state["history"] = history
 
     # ==========================================
-    # 🧹 CLEAN RELATED DATA
+    # 🧹 CLEAN DATA
     # ==========================================
 
     for key in STEP_CLEANUP.get(previous_step, []):
@@ -170,9 +161,9 @@ def go_back(
 
     set_state(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state
+        state = state
     )
 
     logger.info(
@@ -180,8 +171,11 @@ def go_back(
         "navigation_back_success",
 
         extra={
+
             "chat_id": chat_id,
+
             "step": previous_step,
+
             "history_size": len(history)
         }
     )

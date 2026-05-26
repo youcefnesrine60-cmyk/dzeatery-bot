@@ -12,6 +12,8 @@ from app.core.logger import (
 # ==============================================
 
 async def handle_customer_state(
+        
+    *,
 
     chat_id: int,
 
@@ -26,10 +28,12 @@ async def handle_customer_state(
     if step == CustomerStates.RESTAURANT:
 
         logger.info(
+
             "Handling restaurant step for chat_id {chat_id} with text: {text}",
+
             extra={
                 "chat_id": chat_id,
-                "text": text
+                "text_length": len(text)
             }
         )
 
@@ -45,7 +49,7 @@ async def handle_customer_state(
             "Handling product step for chat_id {chat_id} with text: {text}",
             extra={
                 "chat_id": chat_id,
-                "text": text
+                "text_length": len(text)
             }
         )
 
@@ -61,7 +65,7 @@ async def handle_customer_state(
             "Handling cart step for chat_id {chat_id} with text: {text}",
             extra={
                 "chat_id": chat_id,
-                "text": text
+                "text_length": len(text)
             }
         )
 

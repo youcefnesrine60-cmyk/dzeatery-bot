@@ -3,8 +3,9 @@
 # ==============================================
 
 from app.services.validation import (
-    sanitize_restaurant_name,
-    sanitize_owner_name,
+
+    sanitize_restaurant,
+    sanitize_owner,
     sanitize_wilaya,
     sanitize_description
 )
@@ -14,10 +15,27 @@ from app.core.logger import (
 )
 
 # ==============================================
+# 🧼 SANITIZER MAP
+# ==============================================
+
+SANITIZERS = {
+
+    "restaurant": sanitize_restaurant,
+
+    "owner": sanitize_owner,
+
+    "wilaya": sanitize_wilaya,
+
+    "description": sanitize_description
+}
+
+# ==============================================
 # 🧼 SAFE SANITIZE
 # ==============================================
 
 def safe_sanitize(
+
+    *,
 
     chat_id: int,
 
@@ -30,74 +48,81 @@ def safe_sanitize(
     try:
 
         # ======================================
-        # 🍽️ RESTAURANT
+        # 🔍 GET SANITIZER
         # ======================================
 
-        if field == "restaurant":
-
-            return sanitize_restaurant_name(
-
-                text,
-
-                chat_id
-            )
-
-        # ======================================
-        # 👤 OWNER
-        # ======================================
-
-        if field == "owner":
-
-            return sanitize_owner_name(
-
-                text,
-
-                chat_id
-            )
-
-        # ======================================
-        # 🗺️ WILAYA
-        # ======================================
-
-        if field == "wilaya":
-
-            return sanitize_wilaya(
-
-                text,
-
-                chat_id
-            )
-
-        # ======================================
-        # 📝 DESCRIPTION
-        # ======================================
-
-        if field == "description":
-
-            return sanitize_description(
-
-                text,
-
-                chat_id
-            )
+        sanitizer = SANITIZERS.get(field)
 
         # ======================================
         # 🚫 UNKNOWN FIELD
         # ======================================
 
-        logger.warning(
+        if not sanitizer:
 
-            "safe_sanitize_unknown_field",
+            logger.warning(
+
+                "safe_sanitize_unknown_field",
+
+                extra={
+                    "chat_id": chat_id,
+                    "field": field
+                }
+            )
+
+            return None
+
+        # ======================================
+        # 🧼 START SANITIZATION
+        # ======================================
+
+        logger.info(
+
+            "safe_sanitize_started",
 
             extra={
-
                 "chat_id": chat_id,
-
                 "field": field
             }
         )
 
-        return None
+        # ======================================
+        # 🧼 SANITIZE
+        # ======================================
+
+        clean = sanitizer(
+
+            text = text,
+
+            chat_id = chat_id
+        )
+
+        # ======================================
+        # 🚫 INVALID INPUT
+        # ======================================
+
+        if not clean:
+            #=== Dont logger ====
+            return None
+
+        # ======================================
+        # ✅ SUCCESS
+        # ======================================
+
+        logger.info(
+
+            "safe_sanitize_success",
+
+            extra={
+                "chat_id": chat_id,
+                "field": field
+            }
+        )
+
+        return clean
+
+    # ==========================================
+    # 🚫 EXCEPTION
+    # ==========================================
 
     except Exception as e:
 
@@ -106,11 +131,8 @@ def safe_sanitize(
             "safe_sanitize_failed",
 
             extra={
-
                 "chat_id": chat_id,
-
                 "field": field,
-
                 "error": str(e)
             }
         )

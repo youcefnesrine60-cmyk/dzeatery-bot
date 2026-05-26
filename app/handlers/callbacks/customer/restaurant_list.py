@@ -71,13 +71,13 @@ async def customer_callback(
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = consent_text(),
 
-            consent_text(),
+            reply_markup = consent_ui("customer"),
 
-            consent_ui("customer")
+            message_id = message_id
         )
 
         return
@@ -105,8 +105,8 @@ async def customer_callback(
     )
 
     await show_restaurants(
-        chat_id,
-        message_id
+        chat_id = chat_id,
+        message_id = message_id
     )
 
 # ==========================================
@@ -130,17 +130,33 @@ async def show_restaurants(
                 "chat_id": chat_id
             }
         )
+
         await UIManager.update(
-            chat_id,
-            message_id,
-            "❌ عذراً، قائمة المطاعم غير متوفرة حالياً"
+
+            chat_id = chat_id,
+
+            text = "❌ عذراً، قائمة المطاعم غير متوفرة حالياً",
+
+            reply_markup = None, 
+
+            message_id = message_id
         )
 
         return
 
+    logger.info(
+        "عرض قائمة المطاعم للمستخدم",
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
     await UIManager.update(
-        chat_id,
-        message_id,
-        "🍽️ اختر مطعم:",
-        restaurants_ui(restaurants)
+        chat_id = chat_id,
+
+        text = "🍽️ اختر مطعم:",
+
+        reply_markup = restaurants_ui(restaurants),
+
+        message_id = message_id,
     )

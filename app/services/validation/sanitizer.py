@@ -1,5 +1,5 @@
 # ==============================================
-# 🛡️ VALIDATION SERVICE
+# 🧼 SANITIZER SERVICE
 # ==============================================
 
 import re
@@ -19,6 +19,8 @@ from app.services.validation.text_rules import (
 # ==============================================
 
 def _sanitize(
+
+    *,
 
     text: str | None,
 
@@ -72,7 +74,7 @@ def _sanitize(
     try:
 
         # ======================================
-        # 🧹 CLEAN SPACES
+        # 🧹 REMOVE OUTER SPACES
         # ======================================
 
         text = text.strip()
@@ -96,13 +98,7 @@ def _sanitize(
             return None
 
         # ======================================
-        # 📏 LIMIT LENGTH
-        # ======================================
-
-        text = text[:max_length]
-
-        # ======================================
-        # 🧼 REMOVE INVALID CHARS
+        # 🧼 REMOVE INVALID CHARACTERS
         # ======================================
 
         text = re.sub(
@@ -115,7 +111,7 @@ def _sanitize(
         )
 
         # ======================================
-        # 🧼 REMOVE MULTIPLE SPACES
+        # 🧼 NORMALIZE SPACES
         # ======================================
 
         text = re.sub(
@@ -126,6 +122,18 @@ def _sanitize(
 
             text
         )
+
+        # ======================================
+        # 📏 LIMIT LENGTH
+        # ======================================
+
+        text = text[:max_length]
+
+        # ======================================
+        # 🧹 FINAL CLEANUP
+        # ======================================
+
+        text = text.strip()
 
         # ======================================
         # 🚫 TOO SHORT
@@ -139,8 +147,7 @@ def _sanitize(
 
                 extra={
                     "chat_id": chat_id,
-                    "field": field,
-                    "text": text
+                    "field": field
                 }
             )
 
@@ -162,6 +169,10 @@ def _sanitize(
 
         return text
 
+    # ==========================================
+    # 🚫 EXCEPTION
+    # ==========================================
+
     except Exception as e:
 
         logger.exception(
@@ -178,10 +189,12 @@ def _sanitize(
         return None
 
 # ==============================================
-# 🍽️ RESTAURANT NAME
+# 🍽️ RESTAURANT SANITIZER
 # ==============================================
 
-def sanitize_restaurant_name(
+def sanitize_restaurant(
+
+    *,
 
     text: str | None,
 
@@ -197,16 +210,18 @@ def sanitize_restaurant_name(
 
         max_length=MAX_NAME_LENGTH,
 
-        field="restaurant_name",
+        field="restaurant",
 
         chat_id=chat_id
     )
 
 # ==============================================
-# 👤 OWNER NAME
+# 👤 OWNER SANITIZER
 # ==============================================
 
-def sanitize_owner_name(
+def sanitize_owner(
+
+    *,
 
     text: str | None,
 
@@ -222,16 +237,18 @@ def sanitize_owner_name(
 
         max_length=MAX_NAME_LENGTH,
 
-        field="owner_name",
+        field="owner",
 
         chat_id=chat_id
     )
 
 # ==============================================
-# 🗺️ WILAYA
+# 🗺️ WILAYA SANITIZER
 # ==============================================
 
 def sanitize_wilaya(
+
+    *,
 
     text: str | None,
 
@@ -253,10 +270,12 @@ def sanitize_wilaya(
     )
 
 # ==============================================
-# 📝 DESCRIPTION
+# 📝 DESCRIPTION SANITIZER
 # ==============================================
 
 def sanitize_description(
+
+    *,
 
     text: str | None,
 
@@ -276,4 +295,3 @@ def sanitize_description(
 
         chat_id=chat_id
     )
-

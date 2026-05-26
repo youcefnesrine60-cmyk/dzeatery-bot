@@ -11,7 +11,7 @@ from app.helpers.ui_manager import (
 )
 
 from app.helpers.message import (
-    send_willaya_name
+    send_wilaya_name
 )
 
 from app.states.owner_states import (
@@ -22,12 +22,18 @@ from app.core.logger import (
     logger
 )
 
+from app.views.ui import (
+    back_ui
+)
+
 
 # ==============================================
 # 🏪 RESTAURANT STEP
 # ==============================================
 
 async def handle_restaurant_step(
+
+    *,
 
     chat_id: int,
 
@@ -37,20 +43,28 @@ async def handle_restaurant_step(
 
 ) -> None:
 
+    # ==========================================
+    # 🧼 SANITIZE INPUT
+    # ==========================================
+
     clean = safe_sanitize(
 
-        chat_id,
+        chat_id = chat_id,
 
-        text,
+        text = text,
 
-        "restaurant_name"
+        field = "restaurant"
     )
+
+    # ==========================================
+    # 🚫 INVALID INPUT
+    # ==========================================
 
     if not clean:
 
         logger.warning(
 
-            "invalid_restaurant_name",
+            "invalid_restaurant",
 
             extra={
                 "chat_id": chat_id
@@ -59,25 +73,75 @@ async def handle_restaurant_step(
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "❌ اسم المحل غير صالح."
+            text = "❌ اسم المحل غير صالح.",
+
+            reply_markup = back_ui()
         )
 
         return
 
+    # ==========================================
+    # 💾 SAVE DATA
+    # ==========================================
+
     state["restaurant"] = clean
+
+    logger.info(
+
+        "restaurant_saved",
+
+        extra={
+            "chat_id": chat_id,
+            "restaurant": clean
+        }
+    )
+
+    # ==========================================
+    # 🔄 TRANSITION
+    # ==========================================
 
     success = await transition_to(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state,
+        state = state,
 
-        OwnerStates.WILAYA
+        next_state = OwnerStates.WILAYA
     )
 
+    # ==========================================
+    # 🚫 TRANSITION FAILED
+    # ==========================================
+
     if not success:
+
+        logger.error(
+
+            "transition_to_wilaya_failed",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return
 
-    await send_willaya_name(chat_id)
+    # ==========================================
+    # 🗺️ NEXT SCREEN
+    # ==========================================
+
+    logger.info(
+
+        "prompting_for_wilaya",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
+    await send_wilaya_name(
+
+        chat_id = chat_id
+    )

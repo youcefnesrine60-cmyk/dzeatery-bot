@@ -2,7 +2,7 @@
 # 🤖 TELEGRAM SERVICE EXPORTS
 # ============================================
 
-from app.services.telegram.messages import (
+from app.services.telegram.telegram_client import (
     send_message,
     edit_message,
     delete_message

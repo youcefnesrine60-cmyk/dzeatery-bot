@@ -5,10 +5,10 @@ ALLOWED_TRANSITIONS = {
 
     OwnerStates.NAME: [
 
-        OwnerStates.RESTAURANT_NAME
+        OwnerStates.RESTAURANT
     ],
 
-    OwnerStates.RESTAURANT_NAME: [
+    OwnerStates.RESTAURANT: [
 
         OwnerStates.WILAYA
     ],

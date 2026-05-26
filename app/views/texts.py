@@ -22,10 +22,10 @@ RESTAU_NAME = (
     "🏪 أدخل اسم المحل:"
 )
 
-WILLAYA_NAME = (
+WILAYA_NAME = (
     "📍 أدخل الولاية:"
 )
 
-PHONE_NUMBRE = (
+PHONE_NUMBER = (
     "📞 أدخل رقم الهاتف:"
 )

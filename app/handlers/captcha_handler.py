@@ -19,7 +19,11 @@ from app.core.logger import (
 # ==============================================
 
 async def send_captcha(
+        
+        *,
+
         chat_id: int
+
 ) -> None:
 
     logger.info(
@@ -45,9 +49,9 @@ async def send_captcha(
 
     await CaptchaManager.require(
 
-        chat_id,
+        chat_id = chat_id,
 
-        captcha["answer"]
+        answer = captcha["answer"]
     )
 
     logger.info(
@@ -61,9 +65,11 @@ async def send_captcha(
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        captcha["question"]
+        text = captcha["question"],
+
+        reply_markup = captcha["keyboard"]
     )
 
 
@@ -72,6 +78,8 @@ async def send_captcha(
 # ==============================================
 
 async def handle_captcha(
+        
+    *,
 
     chat_id: int,
 
@@ -86,24 +94,26 @@ async def handle_captcha(
 
             extra={
                 "chat_id": chat_id,
-                "text": text
+                "text_length": len(text)
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "⚠️ الرجاء إدخال الرقم الصحيح فقط."
+            text = "⚠️ الرجاء إدخال الرقم الصحيح فقط.",
+
+            reply_markup = None
         )
 
         return False
 
     valid = await CaptchaManager.verify(
 
-        chat_id,
+        chat_id = chat_id,
 
-        text
+        text = text
     )
 
     if not valid:
@@ -114,20 +124,24 @@ async def handle_captcha(
             
             extra={
                 "chat_id": chat_id,
-                "text": text
+                "text_length": len(text)
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "❌ إجابة خاطئة.\nحاول مرة أخرى."
+            text = "❌ إجابة خاطئة.\nحاول مرة أخرى.",
+
+            reply_markup = None
         )
 
         return False
-
-    await CaptchaManager.clear(chat_id)
+    
+    await CaptchaManager.clear(
+        chat_id = chat_id
+    )
 
     logger.info(
 
@@ -135,15 +149,17 @@ async def handle_captcha(
 
         extra={
             "chat_id": chat_id,
-            "text": text
+            "text_length": len(text)
         }
     )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        "✅ تم التحقق بنجاح."
+        text = "✅ تم التحقق بنجاح.",
+
+        reply_markup = None
     )
 
     logger.info(

@@ -53,64 +53,72 @@ async def owner_callback(
 ) -> None:
 
     if not has_consent(chat_id):
+        logger.info(
+
+            "owner_no_consent",
+
+            extra={
+
+                "chat_id": chat_id
+            }
+        )
+
+        await UIManager.update(
+                 
+            chat_id = chat_id,
+                
+            text = consent_text(),
+
+            reply_markup = consent_ui("owner"),
+
+            message_id = message_id
+        )
+
+        return
             
-            logger.info(
-                 
-                "OWNER has not given consent, showing consent screen",
-
-                 extra={
-                    "chat_id": chat_id
-                }
-                 
-            )
-
-            await UIManager.update(
-                chat_id,
-                message_id,
-
-                consent_text(),
-
-                consent_ui("owner")
-            )
-
-            return
     
     logger.info(
                 
-            "User {chat_id} has given consent",
-            
-            extra={
-                "chat_id": chat_id
-            }
+        "owner_callback_triggered",
+
+        extra={
+
+            "chat_id": chat_id
+        }
     )
 
-    set_state(chat_id, {
+    set_state(
+        
+        chat_id, {
          
-        "flow": "owner",
+            "flow": "owner",
 
-        "step": OwnerStates.NAME,
+            "step": OwnerStates.NAME,
 
-        "history": []
-    })
+            "history": []
+        }
+    )
 
     logger.info(
          
-        "User {chat_id} is proceeding to the name step",
-        
+        "owner_flow_started",
+
         extra={
+
             "chat_id": chat_id
+
         }
     )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        message_id,
+        text = OWNER_NAME,
 
-        OWNER_NAME,
+        reply_markup = back_ui(),
 
-        back_ui()
+        message_id = message_id
     )
 
 
@@ -129,45 +137,65 @@ async def consent_callback(
 
     if callback_data.endswith("owner"):
 
-        set_state(chat_id, {
+        logger.info(
+
+            "owner_given_consent",
+
+             extra={
+
+                "chat_id": chat_id
+            }
+        )
+
+        set_state(
+            
+            chat_id, {
              
-            "flow": "owner",
+                "flow": "owner",
 
-            "step": OwnerStates.NAME,
+                "step": OwnerStates.NAME,
 
-            "history": []
-        })
+                "history": []
+            }
+        )
 
         logger.info(
              
-             "User {chat_id} is proceeding to the name step",
-             
-             extra={
+            "owner_flow_started_after_consent",
+
+            extra={
+
                 "chat_id": chat_id
+                
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = OWNER_NAME,
 
-            OWNER_NAME,
+            reply_markup = back_ui(),
 
-            back_ui()
+            message_id = message_id
         )
 
     else:
 
         logger.info(
-            "User {chat_id} is proceeding to the restaurants list",
+            
+            "customer_given_consent",
+
             extra={
+
                 "chat_id": chat_id
             }
         )
 
         await show_restaurants(
-            chat_id,
-            message_id
+
+            chat_id = chat_id,
+            
+            message_id = message_id
         )

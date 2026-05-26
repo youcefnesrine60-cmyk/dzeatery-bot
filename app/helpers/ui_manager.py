@@ -7,25 +7,37 @@ from app.core.logger import (
     logger
 )
 
+# ==========================================
+# 🎨 UI MANAGER
+# ==========================================
+
 class UIManager:
 
     @staticmethod
     async def update(
 
-        chat_id,
-        text,
-        reply_markup=None,
-        message_id=None
+        *,
+
+        chat_id: int,
+
+        text: str,
+
+        reply_markup: dict | None = None,
+
+        message_id: int | None = None
+
     ):
 
         # ==================================
-        # EDIT EXISTING MESSAGE
+        # ✏️ EDIT EXISTING MESSAGE
         # ==================================
 
-        if message_id:
+        if message_id is not None:
 
             logger.info(
+
                 "editing_existing_message",
+
                 extra={
                     "chat_id": chat_id,
                     "message_id": message_id
@@ -34,18 +46,23 @@ class UIManager:
 
             return await edit_message(
 
-                chat_id,
-                message_id,
-                text,
-                reply_markup
+                chat_id = chat_id,
+
+                message_id = message_id,
+
+                text = text,
+
+                reply_markup = reply_markup
             )
 
         # ==================================
-        # SEND NEW MESSAGE
+        # 💬 SEND NEW MESSAGE
         # ==================================
 
         logger.info(
+
             "sending_new_message",
+
             extra={
                 "chat_id": chat_id
             }
@@ -53,7 +70,9 @@ class UIManager:
 
         return await send_message(
 
-            chat_id,
-            text,
-            reply_markup
+            chat_id = chat_id,
+
+            text = text,
+
+            reply_markup = reply_markup
         )

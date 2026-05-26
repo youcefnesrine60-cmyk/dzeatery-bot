@@ -8,6 +8,10 @@ from app.core.limiter.sliding_window import (
     SlidingWindowLimiter
 )
 
+from app.core.logger import (
+    logger
+)
+
 # ==============================================
 # 🚫 RATE LIMIT MIDDLEWARE (DECORATOR)
 # ==============================================
@@ -46,11 +50,22 @@ def rate_limit(
 
             if not allowed:
 
+                logger.warning(
+
+                    "rate_limit_exceeded",
+
+                    extra={
+                        "chat_id": chat_id
+                    }
+                )
+
                 await UIManager.update(
 
-                    chat_id,
+                    chat_id=chat_id,
 
-                    "⚠️ عدد المحاولات كبير، حاول بعد قليل."
+                    text="⚠️ عدد المحاولات كبير، حاول بعد قليل.",
+                    
+                    reply_markup=None
                 )
 
                 return False

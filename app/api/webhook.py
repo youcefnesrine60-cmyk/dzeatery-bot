@@ -1,5 +1,5 @@
 # ==============================================
-#           🔵 Global Entry Point 🔵
+#           🔵 GLOBAL ENTRY POINT 🔵
 # ==============================================
 
 from fastapi import (
@@ -9,7 +9,9 @@ from fastapi import (
     Request
 )
 
-from app.core.dispatcher import dispatch_update
+from app.core.dispatcher import (
+    dispatch_update
+)
 
 from app.core.middleware.gateway import (
     GatewayMiddleware
@@ -37,34 +39,35 @@ from app.core.logger import (
 
 router = APIRouter()
 
-
 # ==============================================
 # 🚀 REGISTER CALLBACK ROUTES
 # ==============================================
 
 setup_routes()
 
-
 # ==============================================
-# 🚀 WEBHOOK ENDPOINT (🌍 TELEGRAM WEBHOOK)
+# 🚀 WEBHOOK ENDPOINT
 # ==============================================
 
 @router.post("/webhook")
 
 async def telegram_webhook(
 
+    *,
+
     request: Request
+
 ) -> dict:
 
     # ==========================================
-    # REQUEST
+    # 📦 REQUEST DATA
     # ==========================================
 
     data = await request.json()
 
-    # ======================================
-    # EXTRACT CHAT ID
-    # ======================================
+    # ==========================================
+    # 🔍 DEFAULT VALUES
+    # ==========================================
 
     chat_id = None
 
@@ -72,133 +75,178 @@ async def telegram_webhook(
 
     text = None
 
+    # ==========================================
+    # 💬 MESSAGE UPDATE
+    # ==========================================
+
     if "message" in data:
 
-        chat_id = data["message"]["chat"]["id"]
+        message = data["message"]
 
-        logger.info(
-            "received_message",
-            extra={
-                "chat_id": data["message"]["chat"]["id"],
-                "text": data["message"].get("text", "")
-            }
-        )
+        chat_id = message["chat"]["id"]
 
-        text = data["message"].get("text")
+        text = message.get("text")
 
         update_type = "message"
 
-    elif "callback_query" in data:
-
         logger.info(
-            "received_callback",
+
+            "received_message",
+
             extra={
-                "chat_id": data["callback_query"]["message"]["chat"]["id"]
+                "chat_id": chat_id,
+                "text_length": len(text) if text else 0
             }
         )
 
-        chat_id = data["callback_query"]["message"]["chat"]["id"]
+    # ==========================================
+    # 🔘 CALLBACK UPDATE
+    # ==========================================
+
+    elif "callback_query" in data:
+
+        callback = data["callback_query"]
+
+        chat_id = callback["message"]["chat"]["id"]
 
         update_type = "callback"
 
-    # ======================================
-    # 📜 REQUEST LOGGER
-    # ======================================
-
-    if chat_id:
-
         logger.info(
-            "logging_request",
-            extra={
-                "chat_id": chat_id,
-                "update_type": update_type
-            }
-        )
 
-        await RequestLogger.log(
+            "received_callback",
 
-            chat_id,
-
-            update_type
-        )
-
-    # ======================================
-    # 🌍 GATEWAY MIDDLEWARE
-    # ======================================
-
-    if chat_id:
-
-        logger.info(
-            "gateway_check",
             extra={
                 "chat_id": chat_id
             }
         )
 
-        allowed = await GatewayMiddleware.process(
+    # ==========================================
+    # 🚫 INVALID UPDATE
+    # ==========================================
 
-            chat_id
+    if not chat_id:
+
+        logger.warning(
+
+            "webhook_missing_chat_id"
         )
 
-        if not allowed:
+        return {
+            "ok": False
+        }
 
-            logger.warning(
-                "gateway_blocked",
-                extra={
-                    "chat_id": chat_id
-                }
-            )
-
-            return {
-                "ok": False
-            }
-
-    # ======================================
-    # 🛡️ RISK ENGINE
-    # ======================================
-
-    if chat_id:
-
-        logger.info(
-            "risk_analysis",
-            extra={
-                "chat_id": chat_id,
-                "text": text
-            }
-        )
-
-        safe = await RiskEngine.analyze(
-
-            chat_id,
-            text
-        )
-
-        if not safe:
-
-            logger.warning(
-                "risk_blocked",
-                extra={
-                    "chat_id": chat_id,
-                    "text": text
-                }
-            )
-
-            return {
-                "ok": False
-            }
-
-    # ======================================
-    # 🚀 DISPATCH UPDATE
-    # ======================================
+    # ==========================================
+    # 📜 REQUEST LOGGER
+    # ==========================================
 
     logger.info(
-        "dispatching_update",
+
+        "logging_request",
+
+        extra={
+            "chat_id": chat_id,
+            "update_type": update_type
+        }
+    )
+
+    await RequestLogger.log(
+
+        chat_id = chat_id,
+
+        update_type = update_type
+    )
+
+    # ==========================================
+    # 🌍 GATEWAY CHECK
+    # ==========================================
+
+    logger.info(
+
+        "gateway_check",
+
         extra={
             "chat_id": chat_id
         }
     )
 
-    await dispatch_update(data)
+    allowed = await GatewayMiddleware.process(
+
+        chat_id = chat_id
+    )
+
+    if not allowed:
+
+        logger.warning(
+
+            "gateway_blocked",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        return {
+            "ok": False
+        }
+
+    # ==========================================
+    # 🛡️ RISK ANALYSIS
+    # ==========================================
+
+    logger.info(
+
+        "risk_analysis",
+
+        extra={
+            "chat_id": chat_id,
+            "text_length": len(text) if text else 0
+        }
+    )
+
+    safe = await RiskEngine.analyze(
+
+        chat_id = chat_id,
+
+        text = text
+    )
+
+    if not safe:
+
+        logger.warning(
+
+            "risk_blocked",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        return {
+            "ok": False
+        }
+
+    # ==========================================
+    # 🚀 DISPATCH UPDATE
+    # ==========================================
+
+    logger.info(
+
+        "dispatching_update",
+
+        extra={
+            "chat_id": chat_id,
+            "update_type": update_type
+        }
+    )
+
+    await dispatch_update(
+
+        data = data
+    )
+
+    # ==========================================
+    # ✅ SUCCESS
+    # ==========================================
 
     return {
         "ok": True

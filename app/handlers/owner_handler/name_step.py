@@ -21,6 +21,7 @@ from app.states.owner_states import (
 from app.core.logger import (
     logger
 )
+from app.views.ui import back_ui
 
 
 # ==============================================
@@ -39,29 +40,33 @@ async def handle_name_step(
 
     clean = safe_sanitize(
 
-        chat_id,
+        chat_id = chat_id,
 
-        text,
+        text = text,
 
-        "owner_name"
+        field = "owner"
     )
 
     if not clean:
 
         logger.warning(
 
-            "invalid_owner_name",
+            "invalid_owner",
 
             extra={
+
                 "chat_id": chat_id
+                
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "❌ اسم غير صالح."
+            text = "❌ اسم غير صالح.",
+
+            reply_markup = back_ui()
         )
 
         return
@@ -70,11 +75,11 @@ async def handle_name_step(
 
     success = await transition_to(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state,
+        state = state,
 
-        OwnerStates.RESTAURANT_NAME
+        next_state = OwnerStates.RESTAURANT
     )
 
     if not success:
@@ -84,7 +89,9 @@ async def handle_name_step(
             "transition_failed",
 
             extra={
+
                 "chat_id": chat_id
+
             }
         )
 
@@ -95,8 +102,14 @@ async def handle_name_step(
         "transition_success",
 
         extra={
+
             "chat_id": chat_id
+
         }
     )
 
-    await send_restaurant_name(chat_id)
+    await send_restaurant_name(
+
+        chat_id = chat_id
+        
+    )

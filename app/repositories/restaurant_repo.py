@@ -3,9 +3,7 @@
 # ==============================================
 
 from app.core.db import (
-    get_cursor,
-    commit,
-    rollback
+    get_cursor
 )
 
 from app.core.logger import (
@@ -39,7 +37,7 @@ def get_all_restaurants() -> list[dict]:
 
     logger.info(
 
-        "Fetched all restaurants",
+        "restaurants_fetched",
 
         extra={
             "count": len(rows)
@@ -53,7 +51,7 @@ def get_all_restaurants() -> list[dict]:
         restaurants.append({
 
             "id": row[0],
-            "name": row[1],
+            "restaurant": row[1],
             "owner": row[2],
             "type": row[3],
             "phone": row[4],
@@ -61,117 +59,103 @@ def get_all_restaurants() -> list[dict]:
             "lat": row[6],
             "lng": row[7],
             "chat_id": row[8]
-
         })
 
     return restaurants
-
 
 # ==============================================
 # 🔍 CHECK RESTAURANT EXISTS
 # ==============================================
 
-def exists(name: str) -> bool:
+def restaurant_exists(
+
+    *,
+
+    name: str
+
+) -> bool:
 
     cur = get_cursor()
 
     cur.execute("""
         SELECT 1
         FROM restaurants
-        WHERE LOWER(name)=LOWER(%s)
+        WHERE LOWER(name) = LOWER(%s)
     """, (name,))
 
     result = cur.fetchone()
 
+    exists = result is not None
+
     logger.info(
 
-        "Checked restaurant existence",
+        "restaurant_exists_checked",
 
         extra={
-            "name": name,
-            "exists": result is not None
+            "restaurant": name,
+            "exists": exists
         }
     )
 
-    return result is not None
-
+    return exists
 
 # ==============================================
 # 💾 SAVE RESTAURANT
 # ==============================================
 
-def save(data: dict) -> None:
+def save_restaurant(
+
+    *,
+
+    data: dict
+
+) -> None:
 
     cur = get_cursor()
 
-    try:
-
-        cur.execute("""
-            INSERT INTO restaurants
-            (
-                name,
-                owner,
-                type,
-                phone,
-                wilaya,
-                lat,
-                lng,
-                chat_id
-            )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (
-            data["name"],
-            data["owner"],
-            data["type"],
-            data["phone"],
-            data["wilaya"],
-            data["lat"],
-            data["lng"],
-            data["chat_id"]
-        ))
-
-        # ======================================
-        # 💾 SAVE CHANGES
-        # ======================================
-
-        commit()
-
-        logger.info(
-
-            "Restaurant saved successfully",
-
-            extra={
-                "restaurant": data["name"],
-                "chat_id": data["chat_id"]
-            }
+    cur.execute("""
+        INSERT INTO restaurants
+        (
+            name,
+            owner,
+            type,
+            phone,
+            wilaya,
+            lat,
+            lng,
+            chat_id
         )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+    """, (
+        data["restaurant"],
+        data["owner"],
+        data["type"],
+        data["phone"],
+        data["wilaya"],
+        data["lat"],
+        data["lng"],
+        data["chat_id"]
+    ))
 
-    except Exception as e:
+    logger.info(
 
-        # ======================================
-        # 🔄 ROLLBACK ON FAILURE
-        # ======================================
+        "restaurant_saved",
 
-        rollback()
+        extra={
 
-        logger.error(
+            "chat_id": data["chat_id"],
 
-            "restaurant_save_failed",
-
-            extra={
-                "error": str(e),
-                "restaurant": data.get("name")
-            }
-        )
-
-        raise
-
+            "restaurant": data["restaurant"]
+        }
+    )
 
 # ==============================================
 # 🔍 GET RESTAURANT BY ID
 # ==============================================
 
 def get_restaurant_by_id(
+
+    *,
 
     restaurant_id: int
 
@@ -191,7 +175,7 @@ def get_restaurant_by_id(
             lng,
             chat_id
         FROM restaurants
-        WHERE id=%s
+        WHERE id = %s
     """, (restaurant_id,))
 
     row = cur.fetchone()
@@ -204,7 +188,7 @@ def get_restaurant_by_id(
 
         logger.warning(
 
-            "Restaurant not found",
+            "restaurant_not_found",
 
             extra={
                 "restaurant_id": restaurant_id
@@ -219,7 +203,7 @@ def get_restaurant_by_id(
 
     logger.info(
 
-        "Restaurant found",
+        "restaurant_found",
 
         extra={
             "restaurant_id": restaurant_id
@@ -229,7 +213,7 @@ def get_restaurant_by_id(
     return {
 
         "id": row[0],
-        "name": row[1],
+        "restaurant": row[1],
         "owner": row[2],
         "type": row[3],
         "phone": row[4],
@@ -237,5 +221,4 @@ def get_restaurant_by_id(
         "lat": row[6],
         "lng": row[7],
         "chat_id": row[8]
-
     }

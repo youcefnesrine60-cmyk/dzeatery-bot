@@ -1,3 +1,7 @@
+# ==============================================
+# 🍽️ TYPE CALLBACK
+# ==============================================
+
 import re
 
 from app.helpers.ui_manager import (
@@ -14,78 +18,140 @@ from app.states.owner_states import (
 )
 
 from app.views.texts import (
-     PHONE_NUMBRE
+    PHONE_NUMBER
+)
+
+from app.views.ui import (
+    back_ui
 )
 
 from app.core.logger import (
     logger
 )
 
-from app.views.ui import *
-
 # ==============================================
 # 🍽️ TYPE
 # ==============================================
 
 async def type_callback(
+
+    *,
+
     chat_id: int,
+
     message_id: int,
+
     callback_data: str,
+
     match: re.Match
+
 ) -> None:
 
-    state = get_state(chat_id)
+    # ==========================================
+    # 📥 LOAD STATE
+    # ==========================================
+
+    state = get_state(
+
+        chat_id = chat_id
+    )
+
+    # ==========================================
+    # 🚫 STATE NOT FOUND
+    # ==========================================
 
     if not state:
 
-        logger.error(f"State not found for user {chat_id}")
+        logger.warning(
+
+            "type_state_missing",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return
 
     try:
 
-        state["type"] = callback_data.replace(
+        # ======================================
+        # 🍽️ SAVE TYPE
+        # ======================================
+
+        selected_type = callback_data.replace(
+
             "type_",
             ""
         )
 
-        logger.info(f"User {chat_id} selected type: {state['type']}")
+        state["type"] = selected_type
 
-    except Exception as e:
-
-        logger.error(f"Error parsing type for user {chat_id}: {e}")
-        return
-
-    try:
+        # ======================================
+        # 📜 UPDATE HISTORY
+        # ======================================
 
         state["history"].append(
+
             OwnerStates.TYPE
         )
 
-        logger.info(f"User {chat_id} updated history: {state['history']}")
-
-    except Exception as e:
-        logger.error(f"Error updating history for user {chat_id}: {e}")
-        return
-
-    try:
+        # ======================================
+        # 🔄 UPDATE STEP
+        # ======================================
 
         state["step"] = OwnerStates.PHONE
 
-        set_state(chat_id, state)
-        logger.info(f"User {chat_id} updated step to: {state['step']}")
+        # ======================================
+        # 💾 SAVE STATE
+        # ======================================
+
+        set_state(
+
+            chat_id = chat_id,
+
+            state = state
+        )
+
+        logger.info(
+
+            "type_selected_successfully",
+
+            extra={
+
+                "chat_id": chat_id,
+
+                "type": selected_type,
+
+                "next_step": OwnerStates.PHONE
+            }
+        )
+
+        # ======================================
+        # 📞 ASK PHONE
+        # ======================================
+
+        await UIManager.update(
+
+            chat_id = chat_id,
+
+            text = PHONE_NUMBER,
+
+            reply_markup = back_ui(),
+
+            message_id = message_id
+        )
 
     except Exception as e:
-        logger.error(f"Error updating step for user {chat_id}: {e}")
-        return
 
-    logger.info(f"User {chat_id} completed type selection: {state['type']}")
-    await UIManager.update(
+        logger.exception(
 
-        chat_id,
+            "type_callback_failed",
 
-        message_id,
+            extra={
 
-        PHONE_NUMBRE,
+                "chat_id": chat_id,
 
-        back_ui()
-    )
+                "error": str(e)
+            }
+        )

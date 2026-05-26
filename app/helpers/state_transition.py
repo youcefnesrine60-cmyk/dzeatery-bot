@@ -1,3 +1,7 @@
+# ==============================================
+# 🔄 STATE TRANSITION HELPER
+# ==============================================
+
 from app.repositories.state_repo import (
     set_state
 )
@@ -10,12 +14,13 @@ from app.core.logger import (
     logger
 )
 
-
 # ==============================================
-# 🔄 STATE TRANSITION HELPER
+# 🔄 TRANSITION TO NEXT STATE
 # ==============================================
 
 async def transition_to(
+
+    *,
 
     chat_id: int,
 
@@ -33,9 +38,9 @@ async def transition_to(
 
     if not can_transition(
 
-        current,
+        current_state = current,
 
-        next_state
+        next_state = next_state
     ):
 
         logger.warning(
@@ -72,10 +77,14 @@ async def transition_to(
 
     set_state(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state
+        state = state
     )
+
+    # ==========================================
+    # ✅ SUCCESS
+    # ==========================================
 
     logger.info(
 

@@ -20,8 +20,8 @@ from app.views.texts import (
     WELCOME_MSG,
     OWNER_NAME,
     RESTAU_NAME,
-    WILLAYA_NAME,
-    PHONE_NUMBRE
+    WILAYA_NAME,
+    PHONE_NUMBER
 )
 
 from app.views.ui import *
@@ -35,36 +35,61 @@ from app.core.logger import (
 # ==============================================
 
 async def back_main_callback(
+
+    *,
+
     chat_id: int,
+
     message_id: int,
+
     callback_data: str,
+
     match: re.Match
+
 ) -> None:
 
     try:
 
-        delete_state(chat_id)
+        delete_state(
+
+            chat_id = chat_id
+        )
 
         logger.info(
-            "User {chat_id} went back to main menu",
-            extra={"chat_id": chat_id}
+
+            " go_back_to_main_menu",
+
+            extra={
+
+                "chat_id": chat_id
+
+            }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = WELCOME_MSG,
 
-            WELCOME_MSG,
+            reply_markup = main_menu_ui(),
 
-            main_menu_ui()
+            message_id = message_id
+
         )
     except Exception as e:
 
-        logger.error(
-            "Error in back_main_callback: {error}",
-            extra={"chat_id": chat_id, "error": str(e)}
+        logger.exception(
+
+            "back_to_main_menu_failed",
+
+            extra={
+
+                "chat_id": chat_id,
+
+                "error": str(e)
+
+            }
         )
 
 
@@ -73,122 +98,193 @@ async def back_main_callback(
 # ==============================================
 
 async def decline_callback(
+        
+    *,
+
     chat_id: int,
+
     message_id: int,
+
     callback_data: str,
+
     match: re.Match
+
 ) -> None:
+    
+    logger.info(
+
+        "owner_declined_consent",
+
+        extra={
+
+            "chat_id": chat_id
+
+        }
+    )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        message_id,
+        text = "❌ نعتذر! لا يمكن استخدام البوت بدون الموافقة على سياسة حماية المعطيات ذات الطابع الشخصي",
 
-        "❌ لا يمكن استخدام البوت بدون الموافقة على سياسة حماية المعطيات ذات الطابع الشخصي",
+        reply_markup = main_menu_ui(),
 
-        main_menu_ui()
+        message_id = message_id
     )
-
 
 # ==============================================
 # 🔙 BACK STEP
 # ==============================================
 
 async def back_step_callback(
+        
+    *,
+
     chat_id: int,
+
     message_id: int,
+
     callback_data: str,
+
     match: re.Match
+
 ) -> None:
 
-    previous = go_back(chat_id)
+    previous = go_back(
+
+        chat_id = chat_id
+    )
 
     if not previous:
 
         try:
 
-            delete_state(chat_id)
+            delete_state(
+
+                chat_id = chat_id
+            )
 
             logger.info(
-                "User {chat_id} went back to main menu from an unknown state",
-                extra={"chat_id": chat_id}
+
+                "back_button_pressed_no_previous",
+
+                extra={
+
+                    "chat_id": chat_id
+
+                }
             )
 
             await UIManager.update(
 
-                chat_id,
+                chat_id = chat_id,
 
-                message_id,
+                text = WELCOME_MSG,
 
-                WELCOME_MSG,
+                reply_markup = main_menu_ui(),
 
-                main_menu_ui()
+                message_id = message_id
+                
             )
 
             return
+        
         except Exception as e:
 
-            logger.error(
-                "Error in back_step_callback: {error}",
-                extra={"chat_id": chat_id, "error": str(e)}
+            logger.exception(
+
+                "back_button_pressed_cleanup_failed",
+
+                extra={
+
+                    "chat_id": chat_id,
+
+                    "error": str(e)
+
+                }
             )
 
             return
 
-    steps_ui = {
+    try:
+        
+        steps_ui = {
 
-        "name": (
-            OWNER_NAME,
-            back_ui()
-        ),
+            "name": (
+                OWNER_NAME,
+                back_ui()
+            ),
 
-        "restaurant_name": (
-            RESTAU_NAME,
-            back_ui()
-        ),
+            "restaurant": (
+                RESTAU_NAME,
+                back_ui()
+            ),
 
-        "wilaya": (
-            WILLAYA_NAME,
-            back_ui()
-        ),
+            "wilaya": (
+                WILAYA_NAME,
+                back_ui()
+            ),
 
-        "phone": (
-            PHONE_NUMBRE,
-            back_ui()
+            "phone": (
+                PHONE_NUMBER,
+                back_ui()
+            )
+        }
+
+    except Exception as e:
+
+        logger.exception(
+
+            "error_loading_steps_ui",
+
+            extra={
+                "chat_id": chat_id,
+                "error": str(e)
+            }
         )
-    }
 
     if previous == "location":
 
         logger.info(
-            "User {chat_id} went back to location step",
-            extra={"chat_id": chat_id}
+
+            "went_back_to_location_step",
+
+            extra={
+
+                "chat_id": chat_id
+            }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "📍 اضغط على الزر لفتح الخريطة واختيار موقع المحل الحقيقي:",
+            text = "📍 اضغط على الزر لفتح الخريطة واختيار موقع المحل الحقيقي:",
 
-            location_webapp_ui()
+            reply_markup = location_webapp_ui()
         )
 
     elif previous == "type":
 
         logger.info(
-            "User {chat_id} went back to type step",
-            extra={"chat_id": chat_id}
+
+            "went_back_to_type_step",
+
+            extra={
+
+                "chat_id": chat_id
+
+            }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "🍽️ اختر نوع المحل:",
+            text = "🍽️ اختر نوع المحل:",
 
-            types_ui()
+            reply_markup = types_ui()
         )
 
     else:
@@ -196,17 +292,25 @@ async def back_step_callback(
         text, ui = steps_ui[previous]
 
         logger.info(
-            "User {chat_id} went back to {step} step",
-            extra={"chat_id": chat_id, "step": previous}
+
+            "went_back_to_previous_step",
+
+            extra={
+
+                "chat_id": chat_id,
+
+                "step": previous
+            
+            }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = text,
 
-            text,
+            reply_markup = ui,
 
-            ui
+            message_id = message_id
         )

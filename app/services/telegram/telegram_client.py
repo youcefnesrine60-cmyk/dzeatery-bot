@@ -1,7 +1,12 @@
+# ============================================
+# 🤖 TELEGRAM CLIENT
+# ============================================
+
 from app.core.logger import (
     logger
 )
-from app.services.telegram.base import ( 
+
+from app.services.telegram.base import (
     _post
 )
 
@@ -10,18 +15,28 @@ from app.services.telegram.constants import (
 )
 
 # ============================================
+# 🧩 TYPES
+# ============================================
+
+TelegramResponse = dict | None
+
+ReplyMarkup = dict | None
+
+# ============================================
 # 💬 SEND MESSAGE
 # ============================================
 
 async def send_message(
 
+    *,
+
     chat_id: int,
 
     text: str,
 
-    reply_markup: dict | None = None
+    reply_markup: ReplyMarkup = None
 
-) -> dict | None:
+) -> TelegramResponse:
 
     logger.info(
 
@@ -61,7 +76,9 @@ async def send_message(
         data["reply_markup"] = reply_markup
 
     logger.debug(
-        "message_payload_prepared",
+
+        "send_message_payload_prepared",
+
         extra={
             "chat_id": chat_id
         }
@@ -71,7 +88,7 @@ async def send_message(
 
         "sendMessage",
 
-        data
+        data = data
     )
 
 # ============================================
@@ -80,22 +97,26 @@ async def send_message(
 
 async def edit_message(
 
+    *,
+
     chat_id: int,
 
     message_id: int,
 
     text: str,
 
-    reply_markup: dict | None = None
+    reply_markup: ReplyMarkup = None
 
-) -> dict | None:
+) -> TelegramResponse:
 
     logger.info(
 
         "editing_message",
 
         extra={
+
             "chat_id": chat_id,
+
             "message_id": message_id
         }
     )
@@ -124,7 +145,9 @@ async def edit_message(
             "editing_message_with_reply_markup",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "message_id": message_id
             }
         )
@@ -132,9 +155,13 @@ async def edit_message(
         data["reply_markup"] = reply_markup
 
     logger.debug(
-        "message_payload_prepared",
+
+        "edit_message_payload_prepared",
+
         extra={
+
             "chat_id": chat_id,
+
             "message_id": message_id
         }
     )
@@ -143,7 +170,7 @@ async def edit_message(
 
         "editMessageText",
 
-        data
+        data = data
     )
 
 # ============================================
@@ -152,18 +179,22 @@ async def edit_message(
 
 async def delete_message(
 
+    *,
+
     chat_id: int,
 
     message_id: int
 
-) -> dict | None:
+) -> TelegramResponse:
 
     logger.info(
 
         "deleting_message",
 
         extra={
+
             "chat_id": chat_id,
+
             "message_id": message_id
         }
     )
@@ -172,8 +203,10 @@ async def delete_message(
 
         "deleteMessage",
 
-        {
+        data = {
+
             "chat_id": chat_id,
+
             "message_id": message_id
         }
     )

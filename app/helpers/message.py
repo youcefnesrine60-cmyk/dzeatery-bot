@@ -13,7 +13,7 @@ from app.helpers.ui_manager import (
 from app.views.texts import (
     RESTAU_NAME,
     WELCOME_MSG,
-    WILLAYA_NAME
+    WILAYA_NAME
 )
 
 from app.views.ui import (
@@ -27,13 +27,17 @@ from app.views.ui import (
 
 async def send_screen(
 
+    *,
+
     chat_id: int,
 
     text: str,
 
-    reply_markup: dict,
+    reply_markup: dict | None = None,
 
-    screen_name: str
+    screen_name: str,
+
+    message_id: int | None = None
 
 ) -> None:
 
@@ -43,17 +47,20 @@ async def send_screen(
 
         extra={
             "chat_id": chat_id,
-            "screen": screen_name
+            "screen": screen_name,
+            "message_id": message_id
         }
     )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        text,
+        text = text,
 
-        reply_markup
+        reply_markup = reply_markup,
+
+        message_id = message_id
     )
 
 # =====================================================
@@ -62,19 +69,34 @@ async def send_screen(
 
 async def send_main_menu(
 
-    chat_id: int
+    *,
+
+    chat_id: int,
+
+    message_id: int | None = None
 
 ) -> None:
 
+    logger.info(
+
+        "sending_main_menu",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
     await send_screen(
 
-        chat_id=chat_id,
+        chat_id = chat_id,
 
-        text=WELCOME_MSG,
+        text = WELCOME_MSG,
 
-        reply_markup=main_menu_ui(),
+        reply_markup = main_menu_ui(),
 
-        screen_name="main_menu"
+        screen_name = "main_menu",
+
+        message_id = message_id
     )
 
 # =====================================================
@@ -83,38 +105,68 @@ async def send_main_menu(
 
 async def send_restaurant_name(
 
-    chat_id: int
+    *,
+
+    chat_id: int,
+
+    message_id: int | None = None
 
 ) -> None:
 
+    logger.info(
+
+        "sending_restaurant_name_screen",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
     await send_screen(
 
-        chat_id=chat_id,
+        chat_id = chat_id,
 
-        text=RESTAU_NAME,
+        text = RESTAU_NAME,
 
-        reply_markup=back_ui(),
+        reply_markup = back_ui(),
 
-        screen_name="restaurant_name"
+        screen_name = "restaurant",
+
+        message_id = message_id
     )
 
 # =====================================================
-# 🗺️ WILLAYA NAME
+# 🗺️ WILAYA NAME
 # =====================================================
 
-async def send_willaya_name(
+async def send_wilaya_name(
 
-    chat_id: int
+    *,
+
+    chat_id: int,
+
+    message_id: int | None = None
 
 ) -> None:
 
+    logger.info(
+
+        "sending_wilaya_name_screen",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
     await send_screen(
 
-        chat_id=chat_id,
+        chat_id = chat_id,
 
-        text=WILLAYA_NAME,
+        text = WILAYA_NAME,
 
-        reply_markup=back_ui(),
+        reply_markup = back_ui(),
 
-        screen_name="willaya_name"
+        screen_name = "wilaya",
+
+        message_id = message_id
     )

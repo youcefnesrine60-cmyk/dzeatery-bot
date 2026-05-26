@@ -14,51 +14,32 @@ from app.core.logger import (
 )
 
 # ==============================================
+# 🔑 STATE KEY BUILDER
+# ==============================================
+
+def _state_key(
+
+    chat_id: int
+
+) -> str:
+
+    return f"user:{chat_id}"
+
+# ==============================================
 # 📥 GET STATE
 # ==============================================
 
 def get_state(
+
+    *,
+
     chat_id: int
+
 ) -> dict | None:
 
-    # ==========================================
-    # 🔴 REDIS
-    # ==========================================
+    key = _state_key(
 
-    if redis_client:
-
-        data = redis_client.get(
-            f"user:{chat_id}"
-        )
-
-        if data:
-
-            return json.loads(data)
-
-        return None
-
-    # ==========================================
-    # 🧠 MEMORY
-    # ==========================================
-
-    return memory_storage.get(chat_id)
-
-# ==============================================
-# 💾 SET STATE
-# ==============================================
-
-def set_state(
-    chat_id: int,
-    state: dict
-) -> None:
-
-    logger.info(
-
-        f"Setting state for user {chat_id}",
-
-        extra={
-            "chat_id": chat_id
-        }
+        chat_id = chat_id
     )
 
     # ==========================================
@@ -67,11 +48,104 @@ def set_state(
 
     if redis_client:
 
+        logger.info(
+
+            "getting_state_from_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        data = redis_client.get(key)
+
+        if not data:
+
+            logger.info(
+
+                "state_not_found",
+
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+
+            return None
+
+        logger.info(
+
+            "state_loaded_from_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        return json.loads(data)
+
+    # ==========================================
+    # 🧠 MEMORY
+    # ==========================================
+
+    logger.info(
+
+        "getting_state_from_memory",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
+
+    return memory_storage.get(chat_id)
+
+# ==============================================
+# 💾 SET STATE
+# ==============================================
+
+def set_state(
+
+    *,
+
+    chat_id: int,
+
+    state: dict
+
+) -> None:
+
+    key = _state_key(
+
+        chat_id = chat_id
+    )
+
+    # ==========================================
+    # 🔴 REDIS
+    # ==========================================
+
+    if redis_client:
+
+        logger.info(
+
+            "saving_state_to_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         redis_client.set(
 
-            f"user:{chat_id}",
+            key,
 
             json.dumps(state)
+        )
+
+        logger.info(
+
+            "state_saved_to_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
         )
 
         return
@@ -79,6 +153,15 @@ def set_state(
     # ==========================================
     # 🧠 MEMORY
     # ==========================================
+
+    logger.info(
+
+        "saving_state_to_memory",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
 
     memory_storage[chat_id] = state
 
@@ -87,8 +170,17 @@ def set_state(
 # ==============================================
 
 def delete_state(
+
+    *,
+
     chat_id: int
+
 ) -> None:
+
+    key = _state_key(
+
+        chat_id = chat_id
+    )
 
     # ==========================================
     # 🔴 REDIS
@@ -96,8 +188,24 @@ def delete_state(
 
     if redis_client:
 
-        redis_client.delete(
-            f"user:{chat_id}"
+        logger.info(
+
+            "deleting_state_from_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
+        redis_client.delete(key)
+
+        logger.info(
+
+            "state_deleted_from_redis",
+
+            extra={
+                "chat_id": chat_id
+            }
         )
 
         return
@@ -105,5 +213,14 @@ def delete_state(
     # ==========================================
     # 🧠 MEMORY
     # ==========================================
+
+    logger.info(
+
+        "deleting_state_from_memory",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
 
     memory_storage.pop(chat_id, None)

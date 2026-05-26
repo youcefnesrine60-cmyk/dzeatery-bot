@@ -34,6 +34,8 @@ from app.core.logger import (
 # =====================================================
 
 async def handle_webapp_data(
+        
+    *,
     data: dict
 ) -> None:
 
@@ -41,7 +43,7 @@ async def handle_webapp_data(
 
     chat_id = message["chat"]["id"]
 
-    state = get_state(chat_id)
+    state = get_state(chat_id = chat_id)
 
     # ==========================================
     # 🚫 NO STATE
@@ -107,32 +109,64 @@ async def handle_webapp_data(
 
     success = await transition_to(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state,
+        state = state,
 
-        OwnerStates.TYPE
+        next_state = OwnerStates.TYPE
     )
 
     if not success:
+
+        logger.error(
+
+            "webapp_transition_failed",
+
+            extra={
+
+                "chat_id": chat_id
+            }
+        )
         return
 
     # ==========================================
     # 🍽️ SHOW TYPES
     # ==========================================
 
-    await UIManager.update(
+    logger.info(
 
-        chat_id,
+        "webapp_location_saved",
 
-        "📍 تم حفظ موقع المحل بنجاح."
+        extra={
+
+            "chat_id": chat_id
+        }
     )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        "🍽️ اختر نوع المحل:",
+        text = "📍 تم حفظ موقع المحل بنجاح.",
 
-        types_ui()
+        reply_markup = None
+    )
+
+    logger.info(
+
+        "prompting_for_type",
+
+        extra={
+            
+            "chat_id": chat_id
+        }
+    )
+
+    await UIManager.update(
+
+        chat_id = chat_id,
+
+        text = "🍽️ اختر نوع المحل:",
+
+        reply_markup = types_ui()
     )

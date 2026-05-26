@@ -1,6 +1,6 @@
 from app.services.validation.sanitizer import (
-    sanitize_restaurant_name,
-    sanitize_owner_name,
+    sanitize_restaurant,
+    sanitize_owner,
     sanitize_wilaya,
     sanitize_description
 )

@@ -1,3 +1,7 @@
+# ==============================================
+# ✅ CONFIRM CALLBACK
+# ==============================================
+
 import re
 
 from app.helpers.ui_manager import (
@@ -10,8 +14,8 @@ from app.repositories.state_repo import (
 )
 
 from app.repositories.restaurant_repo import (
-    save,
-    exists
+    save_restaurant,
+    restaurant_exists
 )
 
 from app.core.db import (
@@ -31,15 +35,14 @@ from app.core.logger import (
     logger
 )
 
-
 # ==============================================
 # 🚫 RATE LIMIT
 # ==============================================
 
 @rate_limit(
-    limit=2,
-    window=15,
-    key_prefix="confirm"
+    limit = 2,
+    window = 15,
+    key_prefix = "confirm"
 )
 
 # ==============================================
@@ -47,10 +50,17 @@ from app.core.logger import (
 # ==============================================
 
 async def confirm_callback(
+
+    *,
+
     chat_id: int,
+
     message_id: int,
+
     callback_data: str,
+
     match: re.Match
+
 ) -> None:
 
     # ==========================================
@@ -61,7 +71,7 @@ async def confirm_callback(
 
         f"confirm:{chat_id}",
 
-        ttl=20
+        ttl = 20
     )
 
     if not allowed:
@@ -81,7 +91,10 @@ async def confirm_callback(
     # 📦 LOAD STATE
     # ==========================================
 
-    state = get_state(chat_id)
+    state = get_state(
+
+        chat_id = chat_id
+    )
 
     if not state:
 
@@ -97,10 +110,10 @@ async def confirm_callback(
         return
 
     # ==========================================
-    # ✅ VALIDATION
+    # ✅ REQUIRED FIELDS
     # ==========================================
 
-    required = [
+    required_fields = [
 
         "owner",
         "restaurant",
@@ -111,7 +124,13 @@ async def confirm_callback(
         "lng"
     ]
 
-    if not all(k in state for k in required):
+    missing_fields = [
+
+        field for field in required_fields
+        if field not in state
+    ]
+
+    if missing_fields:
 
         logger.warning(
 
@@ -119,17 +138,17 @@ async def confirm_callback(
 
             extra={
                 "chat_id": chat_id,
-                "state": state
+                "missing_fields": missing_fields
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = "❌ بيانات ناقصة، أعد المحاولة.",
 
-            "❌ بيانات ناقصة، أعد المحاولة"
+            message_id = message_id
         )
 
         return
@@ -138,38 +157,50 @@ async def confirm_callback(
     # 🚫 DUPLICATE RESTAURANT
     # ==========================================
 
-    if exists(state["restaurant"]):
+    if restaurant_exists(
+
+        name = state["restaurant"]
+    ):
 
         logger.info(
 
             "restaurant_already_exists",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "restaurant": state["restaurant"]
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = "❌ هذا المحل مسجل مسبقًا.",
 
-            "❌ هذا المحل مسجل مسبقاً"
+            message_id = message_id
         )
 
         return
 
+    # ==========================================
+    # 💾 PREPARE DATA
+    # ==========================================
+
     state["chat_id"] = chat_id
 
     # ==========================================
-    # 💾 DATABASE TRANSACTION
+    # 💾 SAVE RESTAURANT
     # ==========================================
 
     try:
 
-        save(state)
+        save_restaurant(
+
+            data = state
+        )
 
         commit()
 
@@ -178,7 +209,9 @@ async def confirm_callback(
             "restaurant_registered",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "restaurant": state["restaurant"]
             }
         )
@@ -192,30 +225,36 @@ async def confirm_callback(
             "restaurant_registration_failed",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "restaurant": state.get("restaurant"),
+
                 "error": str(e)
             }
         )
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = "❌ حدث خطأ أثناء التسجيل، حاول مجددًا.",
 
-            "❌ حدث خطأ أثناء التسجيل، حاول مجددًا."
+            message_id = message_id
         )
 
         return
 
     # ==========================================
-    # 🧹 CLEANUP
+    # 🧹 DELETE STATE
     # ==========================================
 
     try:
 
-        delete_state(chat_id)
+        delete_state(
+
+            chat_id = chat_id
+        )
 
     except Exception as e:
 
@@ -224,21 +263,34 @@ async def confirm_callback(
             "state_cleanup_failed",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "error": str(e)
             }
         )
 
     # ==========================================
-    # ✅ SUCCESS
+    # ✅ SUCCESS MESSAGE
     # ==========================================
+
+    logger.info(
+
+        "confirm_success",
+
+        extra={
+            "chat_id": chat_id
+        }
+    )
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        message_id,
+        text = (
+            "🎉 تم تسجيل المحل بنجاح.\n\n"
+            "📞 سيتم التواصل معكم قريبًا بعد مراجعة الطلب."
+        ),
 
-        "🎉 تم تسجيل المحل بنجاح\n\n"
-        "📞 سيتم التواصل معكم قريباً بعد مراجعة الطلب."
+        message_id = message_id
     )

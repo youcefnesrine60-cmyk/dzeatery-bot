@@ -11,6 +11,7 @@ from app.helpers.ui_manager import (
 )
 
 from app.views.ui import (
+    back_ui,
     location_webapp_ui
 )
 
@@ -29,6 +30,8 @@ from app.core.logger import (
 
 async def handle_wilaya_step(
 
+    *,
+
     chat_id: int,
 
     text: str,
@@ -37,14 +40,22 @@ async def handle_wilaya_step(
 
 ) -> None:
 
+    # ==========================================
+    # 🧼 SANITIZE INPUT
+    # ==========================================
+
     clean = safe_sanitize(
 
-        chat_id,
+        chat_id=chat_id,
 
-        text,
+        text=text,
 
-        "wilaya_name"
+        field="wilaya"
     )
+
+    # ==========================================
+    # 🚫 INVALID INPUT
+    # ==========================================
 
     if not clean:
 
@@ -59,32 +70,60 @@ async def handle_wilaya_step(
 
         await UIManager.update(
 
-            chat_id,
+            chat_id=chat_id,
 
-            "❌ ولاية غير صالحة."
+            text="❌ ولاية غير صالحة.",
+
+            reply_markup=back_ui()
         )
 
         return
 
+    # ==========================================
+    # 💾 SAVE STATE
+    # ==========================================
+
     state["wilaya"] = clean
+
+    # ==========================================
+    # 🔄 TRANSITION
+    # ==========================================
 
     success = await transition_to(
 
-        chat_id,
+        chat_id=chat_id,
 
-        state,
+        state=state,
 
-        OwnerStates.LOCATION
+        next_state=OwnerStates.LOCATION
     )
 
+    # ==========================================
+    # 🚫 TRANSITION FAILED
+    # ==========================================
+
     if not success:
+
+        logger.error(
+
+            "wilaya_transition_failed",
+
+            extra={
+                "chat_id": chat_id
+            }
+        )
+
         return
+
+    # ==========================================
+    # 📍 ASK LOCATION
+    # ==========================================
 
     await UIManager.update(
 
-        chat_id,
+        chat_id=chat_id,
 
-        "📍 اضغط على الزر لتحديد موقع المحل على الخريطة:",
+        text="📍 اضغط على الزر لتحديد موقع المحل على الخريطة:",
 
-        location_webapp_ui()
+        reply_markup=location_webapp_ui()
     )

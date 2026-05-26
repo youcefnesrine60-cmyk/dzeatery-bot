@@ -26,7 +26,24 @@ from app.core.logger import (
 # 🧠 OWNER STATE ROUTER
 # ==============================================
 
+STATE_HANDLERS = {
+
+    OwnerStates.NAME: handle_name_step,
+
+    OwnerStates.RESTAURANT: handle_restaurant_step,
+
+    OwnerStates.WILAYA: handle_wilaya_step,
+
+    OwnerStates.PHONE: handle_phone_step
+}
+
+# ==============================================
+# 🚀 HANDLE OWNER STATE
+# ==============================================
+
 async def handle_owner_state(
+
+    *,
 
     chat_id: int,
 
@@ -36,68 +53,43 @@ async def handle_owner_state(
 
 ) -> None:
 
-    step = state["step"]
+    step = state.get("step")
 
-    if step == OwnerStates.NAME:
+    handler = STATE_HANDLERS.get(step)
 
-        logger.info(
-            "Handling name step for chat_id {chat_id} with text: {text}",
+    if not handler:
+
+        logger.warning(
+
+            "unknown_owner_state",
+
             extra={
+
                 "chat_id": chat_id,
-                "text": text
+
+                "step": step
             }
         )
 
-        await handle_name_step(
-            chat_id,
-            text,
-            state
-        )
+        return
 
-    elif step == OwnerStates.RESTAURANT_NAME:
+    logger.info(
 
-        logger.info(
-            "Handling restaurant name step for chat_id {chat_id} with text: {text}",
-            extra={
-                "chat_id": chat_id,
-                "text": text
-            }
-        )
+        "handling_owner_state",
 
-        await handle_restaurant_step(
-            chat_id,
-            text,
-            state
-        )
+        extra={
 
-    elif step == OwnerStates.WILAYA:
+            "chat_id": chat_id,
+            
+            "step": step
+        }
+    )
 
-        logger.info(
-            "Handling wilaya step for chat_id {chat_id} with text: {text}",
-            extra={
-                "chat_id": chat_id,
-                "text": text
-            }
-        )
+    await handler(
 
-        await handle_wilaya_step(
-            chat_id,
-            text,
-            state
-        )
+        chat_id = chat_id,
 
-    elif step == OwnerStates.PHONE:
+        text = text,
 
-        logger.info(
-            "Handling phone step for chat_id {chat_id} with text: {text}",
-            extra={
-                "chat_id": chat_id,
-                "text": text
-            }
-        )
-
-        await handle_phone_step(
-            chat_id,
-            text,
-            state
-        )
+        state = state
+    )

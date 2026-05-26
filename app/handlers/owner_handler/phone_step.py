@@ -12,6 +12,7 @@ from app.helpers.ui_manager import (
 )
 
 from app.views.ui import (
+    back_ui,
     confirm_ui
 )
 
@@ -30,6 +31,8 @@ from app.core.logger import (
 
 async def handle_phone_step(
 
+    *,
+
     chat_id: int,
 
     text: str,
@@ -38,7 +41,15 @@ async def handle_phone_step(
 
 ) -> None:
 
+    # ==========================================
+    # ☎️ NORMALIZE PHONE
+    # ==========================================
+
     normalized_phone = normalize_phone(text)
+
+    # ==========================================
+    # 🚫 INVALID PHONE
+    # ==========================================
 
     if not validate_phone(normalized_phone):
 
@@ -53,25 +64,41 @@ async def handle_phone_step(
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            "❌ رقم هاتف غير صحيح.\n\n"
-            "📞 مثال صحيح:\n"
-            "0551234567"
+            text = (
+                "❌ رقم هاتف غير صحيح.\n\n"
+                "📞 مثال صحيح:\n"
+                "0551234567"
+            ),
+
+            reply_markup = back_ui()
         )
 
         return
 
+    # ==========================================
+    # 💾 SAVE STATE
+    # ==========================================
+
     state["phone"] = normalized_phone
+
+    # ==========================================
+    # 🔄 TRANSITION
+    # ==========================================
 
     success = await transition_to(
 
-        chat_id,
+        chat_id = chat_id,
 
-        state,
+        state = state,
 
-        OwnerStates.CONFIRM
+        next_state = OwnerStates.CONFIRM
     )
+
+    # ==========================================
+    # 🚫 TRANSITION FAILED
+    # ==========================================
 
     if not success:
 
@@ -86,6 +113,10 @@ async def handle_phone_step(
 
         return
 
+    # ==========================================
+    # ✅ SUCCESS
+    # ==========================================
+
     logger.info(
 
         "phone_step_transition_success",
@@ -95,11 +126,15 @@ async def handle_phone_step(
         }
     )
 
+    # ==========================================
+    # ⚠️ CONFIRM SCREEN
+    # ==========================================
+
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        "⚠️ هل تؤكد عملية التسجيل؟",
+        text = "⚠️ هل تؤكد عملية التسجيل؟",
 
-        confirm_ui()
+        reply_markup = confirm_ui()
     )

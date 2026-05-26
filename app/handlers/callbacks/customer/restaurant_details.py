@@ -7,6 +7,7 @@ from app.helpers.ui_manager import (
 )
 
 from app.views.ui import (
+    back_ui,
     restaurant_actions_ui
 )
 
@@ -85,11 +86,13 @@ async def handle_restaurant_selection(
 
         await UIManager.update(
 
-            chat_id,
+            chat_id = chat_id,
 
-            message_id,
+            text = "❌ المطعم غير موجود.",
 
-            "❌ المطعم غير موجود."
+            reply_markup = back_ui(),
+
+            message_id = message_id
         )
 
         return
@@ -110,13 +113,13 @@ async def handle_restaurant_selection(
 
     await UIManager.update(
 
-        chat_id,
+        chat_id = chat_id,
 
-        message_id,
+        text = f"🍔 {restaurant['name']}",
 
-        f"🍔 {restaurant['name']}",
-
-        restaurant_actions_ui(
+        reply_markup = restaurant_actions_ui(
             restaurant_id
-        )
+        ),
+
+        message_id = message_id,
     )

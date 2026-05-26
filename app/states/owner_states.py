@@ -2,7 +2,7 @@ class OwnerStates:
 
     NAME = "name"
 
-    RESTAURANT_NAME = "restaurant_name"
+    RESTAURANT = "restaurant"
 
     WILAYA = "wilaya"
 
