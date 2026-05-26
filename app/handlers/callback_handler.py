@@ -19,10 +19,18 @@ from app.core.logger import (
 # ==============================================
 
 async def handle_callback(
+
+    *,
+
     data: dict
+
 ) -> None:
 
     try:
+
+        # ======================================
+        # 📦 EXTRACT CALLBACK QUERY
+        # ======================================
 
         query = data["callback_query"]
 
@@ -32,9 +40,11 @@ async def handle_callback(
 
         callback_data = query["data"]
 
-        await answer_callback(
-            query["id"]
-        )
+        callback_id = query["id"]
+
+        # ======================================
+        # 📥 CALLBACK RECEIVED
+        # ======================================
 
         logger.info(
 
@@ -44,11 +54,34 @@ async def handle_callback(
 
                 "chat_id": chat_id,
 
-                "event": "callback",
-
-                "order_id": "-"
+                "callback_data": callback_data
             }
         )
+
+        # ======================================
+        # ☑️ ANSWER CALLBACK
+        # ======================================
+
+        await answer_callback(
+
+            callback_id = callback_id
+        )
+
+        logger.info(
+
+            "callback_answered",
+
+            extra={
+
+                "chat_id": chat_id,
+
+                "callback_data": callback_data
+            }
+        )
+
+        # ======================================
+        # 🚀 DISPATCH CALLBACK
+        # ======================================
 
         await router.dispatch(
 
@@ -59,18 +92,36 @@ async def handle_callback(
             message_id
         )
 
+        # ======================================
+        # ✅ CALLBACK DISPATCHED
+        # ======================================
+
+        logger.info(
+
+            "callback_dispatched",
+
+            extra={
+
+                "chat_id": chat_id,
+
+                "callback_data": callback_data
+            }
+        )
+
+    # ==========================================
+    # 🚫 HANDLE ERRORS
+    # ==========================================
+
     except Exception as e:
 
         logger.exception(
 
-            str(e),
+            "callback_handler_failed",
 
             extra={
 
-                "chat_id": chat_id if 'chat_id' in locals() else "-",
+                "chat_id": chat_id if "chat_id" in locals() else None,
 
-                "event": "callback_handler_failed",
-
-                "order_id": "-"
+                "error": str(e)
             }
         )

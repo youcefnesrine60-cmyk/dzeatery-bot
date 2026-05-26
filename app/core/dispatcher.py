@@ -1,4 +1,6 @@
-from app.core.logger import logger
+# ==============================================
+# 🚀 MAIN UPDATE DISPATCHER
+# ==============================================
 
 from app.handlers.callback_handler import (
     handle_callback
@@ -12,13 +14,20 @@ from app.handlers.webapp_handler import (
     handle_webapp_data
 )
 
+from app.core.logger import (
+    logger
+)
 
-# ==========================================
-# 🚀 MAIN UPDATE DISPATCHER
-# ==========================================
+# ==============================================
+# 🚀 DISPATCH UPDATE
+# ==============================================
 
 async def dispatch_update(
-        data: dict
+
+    *,
+
+    data: dict
+
 ) -> None:
 
     try:
@@ -29,7 +38,17 @@ async def dispatch_update(
 
         if "callback_query" in data:
 
-            await handle_callback(data)
+            logger.info(
+
+                "dispatching_callback",
+
+                extra={}
+            )
+
+            await handle_callback(
+
+                data = data
+            )
 
             return
 
@@ -41,17 +60,41 @@ async def dispatch_update(
 
             message = data["message"]
 
+            logger.info(
+
+                "dispatching_message",
+
+                extra={}
+            )
+
             # ==================================
             # 🌍 WEBAPP DATA
             # ==================================
 
             if "web_app_data" in message:
 
-                await handle_webapp_data(data)
+                logger.info(
+
+                    "dispatching_webapp_data",
+
+                    extra={}
+                )
+
+                await handle_webapp_data(
+
+                    data = data
+                )
 
                 return
 
-            await handle_message(data)
+            # ==================================
+            # 💬 NORMAL MESSAGE
+            # ==================================
+
+            await handle_message(
+
+                data = data
+            )
 
     except Exception as e:
 
@@ -60,6 +103,7 @@ async def dispatch_update(
             "update_dispatch_failed",
 
             extra={
+
                 "error": str(e)
             }
         )

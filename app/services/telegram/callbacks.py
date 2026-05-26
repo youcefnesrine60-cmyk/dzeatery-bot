@@ -12,14 +12,19 @@ from app.services.telegram.base import (
 
 
 async def answer_callback(
+        
+    *,
 
     callback_id: str
 
 ) -> dict | None:
 
     logger.info(
+
         "answering_callback",
+
         extra={
+            
             "callback_id": callback_id
         }
     )
