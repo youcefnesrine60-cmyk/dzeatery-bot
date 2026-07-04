@@ -1,37 +1,24 @@
 # ==============================================
-#           🔵 GLOBAL ENTRY POINT 🔵
+# 🔵 GLOBAL ENTRY POINT
 # ==============================================
 
-from fastapi import (
+from fastapi import APIRouter
+from fastapi import Request
 
-    APIRouter,
+from app.core.dispatcher import dispatch_update
+from app.core.logger import logger
+from app.core.middleware.gateway import GatewayMiddleware
+from app.core.middleware.request_logger import RequestLogger
+from app.core.security.risk_engine import RiskEngine
+from app.handlers.callback_routes import setup_routes
 
-    Request
-)
 
-from app.core.dispatcher import (
-    dispatch_update
-)
+# ==============================================
+# 🧩 TYPES
+# ==============================================
 
-from app.core.middleware.gateway import (
-    GatewayMiddleware
-)
+WebhookResponse = dict[str, bool]
 
-from app.core.middleware.request_logger import (
-    RequestLogger
-)
-
-from app.handlers.callback_routes import (
-    setup_routes
-)
-
-from app.core.security.risk_engine import (
-    RiskEngine
-)
-
-from app.core.logger import (
-    logger
-)
 
 # ==============================================
 # 🚀 API ROUTER
@@ -43,56 +30,59 @@ router = APIRouter()
 # 🚀 REGISTER CALLBACK ROUTES
 # ==============================================
 
-setup_routes()
+# ✅ تصحيح: استخدام await مع الدالة غير المتزامنة
+async def register_routes() -> None:
+    """تسجيل جميع مسارات الكولباك في النظام"""
+    await setup_routes()
+
 
 # ==============================================
 # 🚀 WEBHOOK ENDPOINT
 # ==============================================
 
 @router.post("/webhook")
-
 async def telegram_webhook(
-
     *,
-
     request: Request
-
-) -> dict:
+) -> WebhookResponse:
 
     # ==========================================
-    # 📦 REQUEST DATA
+    # 📦 PARSE REQUEST
     # ==========================================
 
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception as e:
+        logger.exception(
+            "invalid_webhook_payload",
+            extra={
+                "error": str(e)
+            }
+        )
+        return {
+            "ok": False
+        }
 
     # ==========================================
     # 🔍 DEFAULT VALUES
     # ==========================================
 
-    chat_id = None
-
+    chat_id: int | None = None
     update_type = "unknown"
-
-    text = None
+    text: str | None = None
 
     # ==========================================
     # 💬 MESSAGE UPDATE
     # ==========================================
 
     if "message" in data:
-
         message = data["message"]
-
         chat_id = message["chat"]["id"]
-
         text = message.get("text")
-
         update_type = "message"
 
         logger.info(
-
             "received_message",
-
             extra={
                 "chat_id": chat_id,
                 "text_length": len(text) if text else 0
@@ -104,17 +94,22 @@ async def telegram_webhook(
     # ==========================================
 
     elif "callback_query" in data:
-
         callback = data["callback_query"]
+        message = callback.get("message")
 
-        chat_id = callback["message"]["chat"]["id"]
+        if not message:
+            logger.warning(
+                "callback_without_message"
+            )
+            return {
+                "ok": False
+            }
 
+        chat_id = message["chat"]["id"]
         update_type = "callback"
 
         logger.info(
-
             "received_callback",
-
             extra={
                 "chat_id": chat_id
             }
@@ -124,13 +119,13 @@ async def telegram_webhook(
     # 🚫 INVALID UPDATE
     # ==========================================
 
-    if not chat_id:
-
+    if chat_id is None:
         logger.warning(
-
-            "webhook_missing_chat_id"
+            "webhook_missing_chat_id",
+            extra={
+                "data": data
+            }
         )
-
         return {
             "ok": False
         }
@@ -139,52 +134,26 @@ async def telegram_webhook(
     # 📜 REQUEST LOGGER
     # ==========================================
 
-    logger.info(
-
-        "logging_request",
-
-        extra={
-            "chat_id": chat_id,
-            "update_type": update_type
-        }
-    )
-
     await RequestLogger.log(
-
-        chat_id = chat_id,
-
-        update_type = update_type
+        chat_id=chat_id,
+        update_type=update_type
     )
 
     # ==========================================
     # 🌍 GATEWAY CHECK
     # ==========================================
 
-    logger.info(
-
-        "gateway_check",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
     allowed = await GatewayMiddleware.process(
-
-        chat_id = chat_id
+        chat_id=chat_id
     )
 
     if not allowed:
-
         logger.warning(
-
             "gateway_blocked",
-
             extra={
                 "chat_id": chat_id
             }
         )
-
         return {
             "ok": False
         }
@@ -193,34 +162,18 @@ async def telegram_webhook(
     # 🛡️ RISK ANALYSIS
     # ==========================================
 
-    logger.info(
-
-        "risk_analysis",
-
-        extra={
-            "chat_id": chat_id,
-            "text_length": len(text) if text else 0
-        }
-    )
-
     safe = await RiskEngine.analyze(
-
-        chat_id = chat_id,
-
-        text = text
+        chat_id=chat_id,
+        text=text
     )
 
     if not safe:
-
         logger.warning(
-
             "risk_blocked",
-
             extra={
                 "chat_id": chat_id
             }
         )
-
         return {
             "ok": False
         }
@@ -229,25 +182,44 @@ async def telegram_webhook(
     # 🚀 DISPATCH UPDATE
     # ==========================================
 
+    try:
+        await dispatch_update(
+            data=data
+        )
+    except Exception as e:
+        logger.exception(
+            "dispatch_update_failed",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e)
+            }
+        )
+        return {
+            "ok": False
+        }
+
+    # ==========================================
+    # ✅ SUCCESS
+    # ==========================================
+
     logger.info(
-
-        "dispatching_update",
-
+        "webhook_processed",
         extra={
             "chat_id": chat_id,
             "update_type": update_type
         }
     )
 
-    await dispatch_update(
-
-        data = data
-    )
-
-    # ==========================================
-    # ✅ SUCCESS
-    # ==========================================
-
     return {
         "ok": True
     }
+
+
+# ==============================================
+# 🚀 تسجيل المسارات عند بدء التشغيل
+# ==============================================
+
+# ✅ تصحيح: استدعاء الدالة غير المتزامنة بشكل صحيح
+async def startup_routes() -> None:
+    """تسجيل جميع المسارات عند بدء التطبيق"""
+    await register_routes()

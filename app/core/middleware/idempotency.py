@@ -1,38 +1,60 @@
-#=====================================
-#  Idempotency Protection
-# هذه مهمة جدًا للـ payments
-#=====================================
+# =====================================
+# 🔒 IDEMPOTENCY PROTECTION
+# هذه مهمة جدًا للـ Payments
+# =====================================
 
-from app.core.redis_client import (
-    redis_client
-)
+from app.core.logger import logger
+from app.core.redis_client import redis_client
 
-from app.core.logger import (
-    logger
-)
+
+# =====================================
+# 🔒 IDEMPOTENCY
+# =====================================
 
 class Idempotency:
 
+    PREFIX = "idempotency"
+
     @staticmethod
     async def protect(
-
+        *,
         key: str,
-
         ttl: int = 30
     ) -> bool:
-        
+
+        # ==================================
+        # 🚫 REDIS UNAVAILABLE
+        # ==================================
+
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "redis_client_not_initialized",
                 extra={
                     "key": key
                 }
             )
+
             return True
 
-        exists = redis_client.get(key)
+        # ==================================
+        # 🔑 BUILD KEY
+        # ==================================
 
-        if exists:
+        redis_key = f"{Idempotency.PREFIX}:{key}"
+
+        # ==================================
+        # 🔒 ATOMIC PROTECTION
+        # ==================================
+
+        created = redis_client.set(
+            redis_key,
+            "1",
+            ex=ttl,
+            nx=True
+        )
+
+        if not created:
 
             logger.warning(
                 "idempotency_violation",
@@ -43,10 +65,16 @@ class Idempotency:
 
             return False
 
-        redis_client.set(
-            key,
-            "1",
-            ex=ttl
+        # ==================================
+        # ✅ PROTECTED
+        # ==================================
+
+        logger.info(
+            "idempotency_created",
+            extra={
+                "key": key,
+                "ttl": ttl
+            }
         )
 
         return True

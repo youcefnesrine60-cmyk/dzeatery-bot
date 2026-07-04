@@ -1,46 +1,40 @@
 # ==============================================
 # 🧠 STATE REPOSITORY
+# Async Psycopg3 Version (Redis + Memory)
 # ==============================================
 
 import json
 
 from app.core.redis_client import (
-    redis_client,
+    redis_client, 
     memory_storage
 )
+from app.core.logger import logger
 
-from app.core.logger import (
-    logger
-)
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+StateData = dict | None
 
 # ==============================================
 # 🔑 STATE KEY BUILDER
 # ==============================================
 
-def _state_key(
-
-    chat_id: int
-
-) -> str:
-
+def _state_key(chat_id: int) -> str:
     return f"user:{chat_id}"
+
 
 # ==============================================
 # 📥 GET STATE
 # ==============================================
 
-def get_state(
-
+async def get_state(
     *,
-
     chat_id: int
+) -> StateData:
 
-) -> dict | None:
-
-    key = _state_key(
-
-        chat_id = chat_id
-    )
+    key = _state_key(chat_id=chat_id)
 
     # ==========================================
     # 🔴 REDIS
@@ -49,73 +43,62 @@ def get_state(
     if redis_client:
 
         logger.info(
-
             "getting_state_from_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
+            extra={"chat_id": chat_id},
         )
 
-        data = redis_client.get(key)
+        data = await redis_client.get(key)
 
         if not data:
 
             logger.info(
-
                 "state_not_found",
+                extra={"chat_id": chat_id},
+            )
+            return None
 
-                extra={
-                    "chat_id": chat_id
-                }
+        try:
+            state = json.loads(data)
+
+            logger.info(
+                "state_loaded_from_redis",
+                extra={"chat_id": chat_id},
+            )
+
+            return state
+
+        except json.JSONDecodeError:
+
+            logger.exception(
+                "state_json_decode_failed",
+                extra={"chat_id": chat_id},
             )
 
             return None
-
-        logger.info(
-
-            "state_loaded_from_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
-        )
-
-        return json.loads(data)
 
     # ==========================================
     # 🧠 MEMORY
     # ==========================================
 
     logger.info(
-
         "getting_state_from_memory",
-
-        extra={
-            "chat_id": chat_id
-        }
+        extra={"chat_id": chat_id},
     )
 
     return memory_storage.get(chat_id)
+
 
 # ==============================================
 # 💾 SET STATE
 # ==============================================
 
-def set_state(
-
+async def set_state(
     *,
-
     chat_id: int,
-
     state: dict
-
 ) -> None:
 
-    key = _state_key(
-
-        chat_id = chat_id
-    )
+    key = _state_key(chat_id=chat_id)
 
     # ==========================================
     # 🔴 REDIS
@@ -124,30 +107,19 @@ def set_state(
     if redis_client:
 
         logger.info(
-
             "saving_state_to_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
+            extra={"chat_id": chat_id},
         )
 
-        redis_client.set(
-
+        await redis_client.set(
             key,
-
             json.dumps(state)
         )
 
         logger.info(
-
             "state_saved_to_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
+            extra={"chat_id": chat_id},
         )
-
         return
 
     # ==========================================
@@ -155,32 +127,28 @@ def set_state(
     # ==========================================
 
     logger.info(
-
         "saving_state_to_memory",
-
-        extra={
-            "chat_id": chat_id
-        }
+        extra={"chat_id": chat_id},
     )
 
     memory_storage[chat_id] = state
+
+    logger.info(
+        "state_saved_to_memory",
+        extra={"chat_id": chat_id},
+    )
+
 
 # ==============================================
 # 🗑️ DELETE STATE
 # ==============================================
 
-def delete_state(
-
+async def delete_state(
     *,
-
     chat_id: int
-
 ) -> None:
 
-    key = _state_key(
-
-        chat_id = chat_id
-    )
+    key = _state_key(chat_id=chat_id)
 
     # ==========================================
     # 🔴 REDIS
@@ -189,25 +157,16 @@ def delete_state(
     if redis_client:
 
         logger.info(
-
             "deleting_state_from_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
+            extra={"chat_id": chat_id},
         )
 
-        redis_client.delete(key)
+        await redis_client.delete(key)
 
         logger.info(
-
             "state_deleted_from_redis",
-
-            extra={
-                "chat_id": chat_id
-            }
+            extra={"chat_id": chat_id},
         )
-
         return
 
     # ==========================================
@@ -215,12 +174,13 @@ def delete_state(
     # ==========================================
 
     logger.info(
-
         "deleting_state_from_memory",
-
-        extra={
-            "chat_id": chat_id
-        }
+        extra={"chat_id": chat_id},
     )
 
     memory_storage.pop(chat_id, None)
+
+    logger.info(
+        "state_deleted_from_memory",
+        extra={"chat_id": chat_id},
+    )

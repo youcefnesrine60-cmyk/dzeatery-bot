@@ -1,85 +1,139 @@
-#================================
-#  تخزين سجل الاحتيال
-#================================
+# ==============================================
+# 🚨 FRAUD STORAGE
+# تخزين نقاط الاحتيال
+# ==============================================
 
-from app.core.redis_client import (
-    redis_client
-)
+from app.core.redis_client import redis_client
+from app.core.logger import logger
 
-from app.core.logger import (
-    logger
-)
 
 class FraudStorage:
 
     PREFIX = "fraud"
 
+    # ==========================================
+    # ➕ ADD FRAUD SCORE
+    # إضافة نقاط احتيال للمستخدم
+    # ==========================================
+
     @classmethod
     async def add_score(
-
         cls: type,
-
+        *,
         chat_id: int,
-
         score: int
     ) -> None:
-        
+
+        # ======================================
+        # 🚫 REDIS NOT AVAILABLE
+        # ======================================
+
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "fraud_storage_redis_unavailable",
                 extra={
                     "chat_id": chat_id
                 }
             )
+
             return
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        redis_client.incrby(key, score)
+        await redis_client.incrby(
+            key,
+            score,
+        )
 
-        redis_client.expire(key, 86400)
+        await redis_client.expire(
+            key,
+            86400,
+        )
+
+        logger.info(
+            "fraud_score_added",
+            extra={
+                "chat_id": chat_id,
+                "score_added": score,
+            }
+        )
+
+    # ==========================================
+    # 📊 GET FRAUD SCORE
+    # جلب نقاط الاحتيال الحالية
+    # ==========================================
 
     @classmethod
     async def get_score(
-
         cls: type,
-
+        *,
         chat_id: int
     ) -> int:
-        
+
+        # ======================================
+        # 🚫 REDIS NOT AVAILABLE
+        # ======================================
+
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "fraud_storage_redis_unavailable",
                 extra={
                     "chat_id": chat_id
                 }
             )
+
             return 0
 
         key = f"{cls.PREFIX}:{chat_id}"
 
-        score = redis_client.get(key)
+        score = await redis_client.get(
+            key
+        )
 
-        return int(score) if score else 0
+        current_score = (
+            int(score)
+            if score
+            else 0
+        )
+
+        return current_score
+
+    # ==========================================
+    # 🧹 RESET FRAUD SCORE
+    # تصفير نقاط الاحتيال
+    # ==========================================
 
     @classmethod
     async def reset(
-
         cls: type,
-
+        *,
         chat_id: int
     ) -> None:
 
+        # ======================================
+        # 🚫 REDIS NOT AVAILABLE
+        # ======================================
+
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "fraud_storage_redis_unavailable",
                 extra={
                     "chat_id": chat_id
                 }
             )
+
             return
 
-        redis_client.delete(
-
+        await redis_client.delete(
             f"{cls.PREFIX}:{chat_id}"
+        )
+
+        logger.info(
+            "fraud_score_reset",
+            extra={
+                "chat_id": chat_id
+            }
         )

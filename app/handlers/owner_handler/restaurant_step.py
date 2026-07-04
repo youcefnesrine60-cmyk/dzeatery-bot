@@ -1,46 +1,35 @@
-from app.helpers.safe_sanitize import (
-    safe_sanitize
-)
-
-from app.helpers.state_transition import (
-    transition_to
-)
-
-from app.helpers.ui_manager import (
-    UIManager
-)
-
-from app.helpers.message import (
-    send_wilaya_name
-)
-
-from app.states.owner_states import (
-    OwnerStates
-)
-
-from app.core.logger import (
-    logger
-)
-
-from app.views.ui import (
-    back_ui
-)
-
-
 # ==============================================
 # 🏪 RESTAURANT STEP
 # ==============================================
 
+from typing import Any
+
+from app.core.logger import logger
+
+from app.helpers.message import send_wilaya_name
+from app.helpers.safe_sanitize import safe_sanitize
+from app.helpers.state_transition import transition_to
+from app.helpers.ui_manager import UIManager
+
+from app.states.owner_states import OwnerStates
+
+from app.views.ui import back_ui
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+StateData = dict[str, Any]
+
+# ==============================================
+# 🏪 HANDLE RESTAURANT STEP
+# ==============================================
+
 async def handle_restaurant_step(
-
     *,
-
     chat_id: int,
-
     text: str,
-
-    state: dict
-
+    state: StateData,
 ) -> None:
 
     # ==========================================
@@ -48,100 +37,59 @@ async def handle_restaurant_step(
     # ==========================================
 
     clean = safe_sanitize(
-
-        chat_id = chat_id,
-
-        text = text,
-
-        field = "restaurant"
+        chat_id=chat_id,
+        text=text,
+        field="restaurant",
     )
 
     # ==========================================
     # 🚫 INVALID INPUT
     # ==========================================
 
-    if not clean:
+    if clean is None:
 
         logger.warning(
-
             "invalid_restaurant",
-
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ اسم المحل غير صالح.",
-
-            reply_markup = back_ui()
+            chat_id=chat_id,
+            text="❌ اسم المحل غير صالح.",
+            reply_markup=await back_ui(),
         )
 
         return
 
     # ==========================================
-    # 💾 SAVE DATA
+    # 💾 SAVE STATE
     # ==========================================
 
     state["restaurant"] = clean
-
-    logger.info(
-
-        "restaurant_saved",
-
-        extra={
-            "chat_id": chat_id,
-            "restaurant": clean
-        }
-    )
 
     # ==========================================
     # 🔄 TRANSITION
     # ==========================================
 
-    success = await transition_to(
-
-        chat_id = chat_id,
-
-        state = state,
-
-        next_state = OwnerStates.WILAYA
-    )
-
-    # ==========================================
-    # 🚫 TRANSITION FAILED
-    # ==========================================
-
-    if not success:
-
+    if not await transition_to(
+        chat_id=chat_id,
+        state=state,
+        next_state=OwnerStates.WILAYA,
+    ):
         logger.error(
-
-            "transition_to_wilaya_failed",
-
+            "restaurant_transition_failed",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
-
         return
 
     # ==========================================
-    # 🗺️ NEXT SCREEN
+    # 🗺️ REQUEST WILAYA
     # ==========================================
 
-    logger.info(
-
-        "prompting_for_wilaya",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
     await send_wilaya_name(
-
-        chat_id = chat_id
+        chat_id=chat_id,
     )

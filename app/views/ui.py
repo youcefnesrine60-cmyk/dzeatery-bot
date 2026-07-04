@@ -2,9 +2,7 @@
 # 🎨 UI BUILDERS
 # ==============================================
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
 
 # ==============================================
 # 🌐 CONSTANTS
@@ -16,29 +14,21 @@ MAP_URL = "https://dzeatery.onrender.com/map"
 # 🔘 BUTTON HELPER
 # ==============================================
 
-def button(
-
+async def button(
     *,
-
     text: str,
-
     callback: str
-
 ) -> dict:
 
     logger.debug(
-
         "creating_button",
-
         extra={
             "callback": callback
         }
     )
 
     return {
-
         "text": text,
-
         "callback_data": callback
     }
 
@@ -46,35 +36,27 @@ def button(
 # 🏠 MAIN MENU
 # ==============================================
 
-def main_menu_ui() -> dict:
+async def main_menu_ui() -> dict:
 
     logger.info(
-
         "display_main_menu"
     )
 
     return {
-
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "🍽️ زبون مطعم",
-
                     callback = "customer"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "🏪 صاحب محل",
-
                     callback = "owner"
                 )
             ]
-
         ]
     }
 
@@ -82,18 +64,13 @@ def main_menu_ui() -> dict:
 # ✅ CONSENT UI
 # ==============================================
 
-def consent_ui(
-
+async def consent_ui(
     *,
-
     role: str
-
 ) -> dict:
 
     logger.info(
-
         "display_consent_ui",
-
         extra={
             "role": role
         }
@@ -102,25 +79,19 @@ def consent_ui(
     return {
 
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "✅ أوافق",
-
                     callback = f"consent_{role}"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "❌ لا أوافق",
-
                     callback = "decline"
                 )
             ]
-
         ]
     }
 
@@ -128,10 +99,9 @@ def consent_ui(
 # 📜 CONSENT TEXT
 # ==============================================
 
-def consent_text() -> str:
+async def consent_text() -> str:
 
     text = (
-
         "📢 <b>إشعار قانوني/خاص بالدولة الجزائرية</b>\n\n"
 
         "<b><u>سياسة حماية المعطيات ذات الطابع الشخصي</u></b>\n\n"
@@ -151,9 +121,7 @@ def consent_text() -> str:
     )
 
     logger.info(
-
         "display_consent_text",
-
         extra={
             "length": len(text)
         }
@@ -165,26 +133,21 @@ def consent_text() -> str:
 # 🔙 BACK UI
 # ==============================================
 
-def back_ui() -> dict:
+async def back_ui() -> dict:
 
     logger.info(
-
         "display_back_ui"
     )
 
     return {
 
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "🔙 رجوع",
-
                     callback = "back_step"
                 )
             ]
-
         ]
     }
 
@@ -192,21 +155,17 @@ def back_ui() -> dict:
 # 📍 LOCATION WEBAPP UI
 # ==============================================
 
-def location_webapp_ui() -> dict:
+async def location_webapp_ui() -> dict:
 
     logger.info(
-
         "display_location_webapp_ui"
     )
 
     return {
-
         "inline_keyboard": [
-
             [
                 {
                     "text": "📍 تحديد موقع المحل",
-
                     "web_app": {
                         "url": MAP_URL
                     }
@@ -214,14 +173,11 @@ def location_webapp_ui() -> dict:
             ],
 
             [
-                button(
-
+                await button(
                     text = "🔙 رجوع",
-
                     callback = "back_step"
                 )
             ]
-
         ]
     }
 
@@ -229,18 +185,13 @@ def location_webapp_ui() -> dict:
 # 🍽️ RESTAURANTS UI
 # ==============================================
 
-def restaurants_ui(
-
+async def restaurants_ui(
     *,
-
     restaurants: list[dict]
-
 ) -> dict:
 
     logger.info(
-
         "display_restaurants_ui",
-
         extra={
             "count": len(restaurants)
         }
@@ -253,32 +204,25 @@ def restaurants_ui(
     if not restaurants:
 
         logger.warning(
-
             "no_restaurants_found"
         )
 
         return {
 
             "inline_keyboard": [
-
                 [
-                    button(
-
+                    await button(
                         text = "❌ لا توجد مطاعم",
-
                         callback = "noop"
                     )
                 ],
 
                 [
-                    button(
-
+                    await button(
                         text = "🔙 رجوع",
-
                         callback = "back_main"
                     )
                 ]
-
             ]
         }
 
@@ -291,39 +235,28 @@ def restaurants_ui(
     for restaurant in restaurants:
 
         restaurant = restaurant.get(
-
             "name",
-
             "Unknown"
         )
 
         restaurant_id = restaurant.get(
-
             "id",
-
             0
         )
 
         logger.debug(
-
             "processing_restaurant",
-
             extra={
                 "restaurant_id": restaurant_id
             }
         )
 
         buttons.append(
-
             [
-
-                button(
-
+                await button(
                     text = f"🍔 {restaurant}",
-
                     callback = f"rest_{restaurant_id}"
                 )
-
             ]
         )
 
@@ -332,21 +265,15 @@ def restaurants_ui(
     # ==========================================
 
     buttons.append(
-
         [
-
-            button(
-
+            await button(
                 text = "🔙 رجوع",
-
                 callback = "back_main"
             )
-
         ]
     )
 
     return {
-
         "inline_keyboard": buttons
     }
 
@@ -354,45 +281,33 @@ def restaurants_ui(
 # 🍔 RESTAURANT ACTIONS UI
 # ==============================================
 
-def restaurant_actions_ui(
-
+async def restaurant_actions_ui(
     *,
-
     restaurant_id: int
-
 ) -> dict:
 
     logger.info(
-
         "display_restaurant_actions_ui",
-
         extra={
             "restaurant_id": restaurant_id
         }
     )
 
     return {
-
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "📦 طلب",
-
                     callback = f"order_{restaurant_id}"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "🔙 رجوع",
-
                     callback = "show_restaurants"
                 )
             ]
-
         ]
     }
 
@@ -400,89 +315,70 @@ def restaurant_actions_ui(
 # 🍽️ RESTAURANT TYPES UI
 # ==============================================
 
-def types_ui() -> dict:
+async def types_ui() -> dict:
 
     logger.info(
-
         "display_types_ui"
     )
 
     return {
 
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "1- مطعم تقليدي",
-
                     callback = "type_traditional"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "2- Fast Food",
-
                     callback = "type_fastfood"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "3- مشاوي",
-
                     callback = "type_grill"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "4- مطعم فاخر",
-
                     callback = "type_luxury"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "5- أكل شعبي",
-
                     callback = "type_popular"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "6- مقهى 24 ساعة",
-
                     callback = "type_cafe"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "7- حلويات",
-
                     callback = "type_sweets"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "🔙 رجوع",
-
                     callback = "back_main"
                 )
             ]
-
         ]
     }
 
@@ -490,34 +386,27 @@ def types_ui() -> dict:
 # ✅ CONFIRM UI
 # ==============================================
 
-def confirm_ui() -> dict:
+async def confirm_ui() -> dict:
 
     logger.info(
-
         "display_confirm_ui"
     )
 
     return {
 
         "inline_keyboard": [
-
             [
-                button(
-
+                await button(
                     text = "✅ تأكيد التسجيل",
-
                     callback = "confirm"
                 )
             ],
 
             [
-                button(
-
+                await button(
                     text = "🔙 رجوع",
-
                     callback = "back_main"
                 )
             ]
-
         ]
     }

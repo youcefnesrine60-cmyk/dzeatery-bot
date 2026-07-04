@@ -7,17 +7,14 @@
 
 import time
 
-from app.core.redis_client import (
-    redis_client
-)
+from app.core.logger import logger
+from app.core.limiter.sliding_window import SlidingWindowLimiter
+from app.core.redis_client import redis_client
 
-from app.core.limiter.sliding_window import (
-    SlidingWindowLimiter
-)
 
-from app.core.logger import (
-    logger
-)
+# =========================================
+# 🤖 ANTI BOT
+# =========================================
 
 class AntiBot:
 
@@ -29,22 +26,24 @@ class AntiBot:
 
     MIN_HUMAN_DELAY = 0.35
 
+    # =====================================
+    # 🤖 CHECK USER BEHAVIOR
+    # =====================================
+
     @classmethod
     async def check(
-        cls: type, 
+        cls,
+        *,
         chat_id: int
     ) -> bool:
 
-        # ======================================
+        # ==================================
         # 🚫 BURST DETECTION
-        # ======================================
+        # ==================================
 
         allowed = await SlidingWindowLimiter.is_allowed(
-
             key=f"{cls.PREFIX}:burst:{chat_id}",
-
             limit=cls.FAST_LIMIT,
-
             window=cls.FAST_WINDOW
         )
 
@@ -56,44 +55,77 @@ class AntiBot:
                     "chat_id": chat_id
                 }
             )
+
             return False
 
-        # ======================================
-        # 🚫 HUMAN SPEED DETECTION
-        # ======================================
-
-        key = f"{cls.PREFIX}:human:{chat_id}"
-
-        now = time.time()
+        # ==================================
+        # 🚫 REDIS UNAVAILABLE
+        # ==================================
 
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "redis_client_not_initialized",
                 extra={
                     "chat_id": chat_id
                 }
             )
-            return True
-
-        last = redis_client.get(key)
-
-        redis_client.setex(key, 10, now)
-
-        if not last:
 
             return True
 
-        diff = now - float(last)
+        try:
 
-        if diff < cls.MIN_HUMAN_DELAY:
+            # ==============================
+            # 🚫 HUMAN SPEED DETECTION
+            # ==============================
 
-            logger.warning(
-                "human_speed_detected",
+            key = f"{cls.PREFIX}:human:{chat_id}"
+
+            now = time.time()
+
+            last = redis_client.get(key)
+
+            redis_client.setex(
+                key,
+                10,
+                str(now)
+            )
+
+            if not last:
+
+                logger.info(
+                    "first_interaction_recorded",
+                    extra={
+                        "chat_id": chat_id
+                    }
+                )
+
+                return True
+
+            diff = now - float(last)
+
+            if diff < cls.MIN_HUMAN_DELAY:
+
+                logger.warning(
+                    "bot_like_speed_detected",
+                    extra={
+                        "chat_id": chat_id,
+                        "delay": diff
+                    }
+                )
+
+                return False
+
+            return True
+
+        except Exception as e:
+
+            logger.exception(
+                "anti_bot_check_failed",
                 extra={
                     "chat_id": chat_id,
-                    "delay": diff
+                    "error": str(e)
                 }
             )
-            return False
 
-        return True
+            return True

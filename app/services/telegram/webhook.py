@@ -2,35 +2,42 @@
 # 🔗 SET WEBHOOK
 # ============================================
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
+from app.services.telegram.base import _post
 
-from app.services.telegram.base import (
-    _post
-)
+# ============================================
+# 🧩 TYPES
+# ============================================
 
+TelegramResponse = dict | None
+
+# ============================================
+# 🔗 SET WEBHOOK
+# ============================================
 
 async def set_webhook(
+    *,
+    url: str,
+) -> TelegramResponse:
 
-    url: str
-
-) -> dict | None:
+    # ========================================
+    # 📝 LOG REQUEST
+    # ========================================
 
     logger.info(
-
         "setting_webhook",
-
         extra={
             "url": url
         }
     )
 
+    # ========================================
+    # 🚀 CALL TELEGRAM API
+    # ========================================
+
     return await _post(
-
-        "setWebhook",
-
-        {
+        method="setWebhook",
+        data={
             "url": url
         }
     )

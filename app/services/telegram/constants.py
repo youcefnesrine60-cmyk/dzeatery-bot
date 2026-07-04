@@ -1,15 +1,13 @@
-from app.config import (
-    BOT_TOKEN
-)
+from app.config import BOT_TOKEN
 
 # ============================================
-# 🌐 CONSTANTS
+# 🌐 TELEGRAM API CONSTANTS
 # ============================================
 
-BASE_URL = (
+BASE_URL: str = (
     f"https://api.telegram.org/bot{BOT_TOKEN}"
 )
 
-PARSE_MODE = "HTML"
+PARSE_MODE: str = "HTML"
 
-MAX_RETRIES = 3
+MAX_RETRIES: int = 3

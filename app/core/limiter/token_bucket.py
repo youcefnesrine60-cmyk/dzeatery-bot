@@ -4,10 +4,17 @@
 
 import time
 
-from app.core.redis_client import (
-    redis_client,
-    memory_storage
-)
+from app.core.logger import logger
+from app.core.redis_client import memory_storage
+from app.core.redis_client import redis_client
+
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+BucketData = dict[str, float]
+
 
 # ==============================================
 # 🚦 TOKEN BUCKET
@@ -17,16 +24,13 @@ class TokenBucket:
 
     @staticmethod
     async def allow(
-
+        *,
         key: str,
-
         capacity: int = 5,
-
         refill_rate: float = 1.0
-
     ) -> bool:
 
-        now = time.time()
+        now = int(time.time())
 
         redis_key = f"bucket:{key}"
 
@@ -36,87 +40,143 @@ class TokenBucket:
 
         if redis_client:
 
-            bucket = redis_client.hgetall(redis_key)
+            try:
 
-            if not bucket:
+                bucket = redis_client.hgetall(
+                    redis_key
+                )
 
-                tokens = capacity
-                last_refill = now
+                if not bucket:
 
-            else:
+                    tokens = float(capacity)
+                    last_refill = float(now)
 
-                tokens = float(bucket["tokens"])
-                last_refill = float(bucket["last_refill"])
+                    logger.info(
+                        "token_bucket_initialized",
+                        extra={
+                            "key": key
+                        }
+                    )
 
-            # refill
-            elapsed = now - last_refill
+                else:
 
-            tokens = min(
+                    tokens = float(
+                        bucket.get("tokens", 0)
+                    )
 
-                capacity,
+                    last_refill = float(
+                        bucket.get("last_refill", now)
+                    )
 
-                tokens + elapsed * refill_rate
-            )
+                # ==============================
+                # ♻️ REFILL TOKENS
+                # ==============================
 
-            if tokens < 1:
+                elapsed = now - last_refill
 
-                return False
+                tokens = min(
+                    capacity,
+                    tokens + elapsed * refill_rate
+                )
 
-            tokens -= 1
+                # ==============================
+                # 🚫 LIMIT EXCEEDED
+                # ==============================
 
-            redis_client.hset(
+                if tokens < 1:
 
-                redis_key,
+                    logger.warning(
+                        "token_bucket_exceeded",
+                        extra={
+                            "key": key
+                        }
+                    )
 
-                mapping={
+                    return False
 
-                    "tokens": tokens,
+                tokens -= 1
 
-                    "last_refill": now
-                }
-            )
+                redis_client.hset(
+                    redis_key,
+                    mapping={
+                        "tokens": tokens,
+                        "last_refill": now
+                    }
+                )
 
-            redis_client.expire(redis_key, 3600)
+                redis_client.expire(
+                    redis_key,
+                    3600
+                )
 
-            return True
+                return True
+
+            except Exception as e:
+
+                logger.exception(
+                    "token_bucket_redis_failed",
+                    extra={
+                        "key": key,
+                        "error": str(e)
+                    }
+                )
 
         # ======================================
         # 🧠 MEMORY FALLBACK
         # ======================================
 
-        bucket = memory_storage.get(redis_key)
+        bucket: BucketData | None = memory_storage.get(
+            redis_key
+        )
 
         if not bucket:
 
-            tokens = capacity
-            last_refill = now
+            tokens = float(capacity)
+            last_refill = float(now)
+
+            logger.info(
+                "token_bucket_memory_initialized",
+                extra={
+                    "key": key
+                }
+            )
 
         else:
 
             tokens = bucket["tokens"]
             last_refill = bucket["last_refill"]
 
-        # refill
+        # ======================================
+        # ♻️ REFILL TOKENS
+        # ======================================
+
         elapsed = now - last_refill
 
         tokens = min(
-
             capacity,
-
             tokens + elapsed * refill_rate
         )
 
+        # ======================================
+        # 🚫 LIMIT EXCEEDED
+        # ======================================
+
         if tokens < 1:
+
+            logger.warning(
+                "token_bucket_memory_exceeded",
+                extra={
+                    "key": key
+                }
+            )
 
             return False
 
         tokens -= 1
 
         memory_storage[redis_key] = {
-
             "tokens": tokens,
-
-            "last_refill": now
+            "last_refill": float(now)
         }
 
         return True

@@ -6,7 +6,6 @@ import os
 import redis
 
 from dotenv import load_dotenv
-
 from app.core.logger import logger
 
 # ==============================================
@@ -38,9 +37,7 @@ if REDIS_URL:
     try:
 
         redis_client = redis.from_url(
-
             REDIS_URL,
-
             decode_responses=True
         )
 

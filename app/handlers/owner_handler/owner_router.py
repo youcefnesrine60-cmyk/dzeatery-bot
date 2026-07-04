@@ -1,40 +1,41 @@
-from app.states.owner_states import (
-    OwnerStates
-)
-
-from app.handlers.owner_handler.name_step import (
-    handle_name_step
-)
-
-from app.handlers.owner_handler.restaurant_step import (
-    handle_restaurant_step
-)
-
-from app.handlers.owner_handler.wilaya_step import (
-    handle_wilaya_step
-)
-
-from app.handlers.owner_handler.phone_step import (
-    handle_phone_step
-)
-
-from app.core.logger import (
-    logger
-)
-
 # ==============================================
 # 🧠 OWNER STATE ROUTER
 # ==============================================
 
-STATE_HANDLERS = {
+from typing import Any, Awaitable, Callable
 
+from app.core.logger import logger
+
+from app.handlers.owner_handler.name_step import handle_name_step
+from app.handlers.owner_handler.phone_step import handle_phone_step
+from app.handlers.owner_handler.restaurant_step import handle_restaurant_step
+from app.handlers.owner_handler.wilaya_step import handle_wilaya_step
+
+from app.states.owner_states import OwnerStates
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+StateData = dict[str, Any]
+
+StateHandler = Callable[
+    ...,
+    Awaitable[None],
+]
+
+# ==============================================
+# 🧠 OWNER STATE HANDLERS
+# ==============================================
+
+STATE_HANDLERS: dict[
+    str,
+    StateHandler,
+] = {
     OwnerStates.NAME: handle_name_step,
-
     OwnerStates.RESTAURANT: handle_restaurant_step,
-
     OwnerStates.WILAYA: handle_wilaya_step,
-
-    OwnerStates.PHONE: handle_phone_step
+    OwnerStates.PHONE: handle_phone_step,
 }
 
 # ==============================================
@@ -42,54 +43,46 @@ STATE_HANDLERS = {
 # ==============================================
 
 async def handle_owner_state(
-
     *,
-
     chat_id: int,
-
     text: str,
-
-    state: dict
-
+    state: StateData,
 ) -> None:
 
-    step = state.get("step")
+    # ==========================================
+    # 📥 CURRENT STEP
+    # ==========================================
 
-    handler = STATE_HANDLERS.get(step)
+    step = state.get(
+        "step",
+    )
 
-    if not handler:
+    handler = STATE_HANDLERS.get(
+        step,
+    )
+
+    # ==========================================
+    # 🚫 UNKNOWN STEP
+    # ==========================================
+
+    if handler is None:
 
         logger.warning(
-
             "unknown_owner_state",
-
             extra={
-
                 "chat_id": chat_id,
-
-                "step": step
-            }
+                "step": step,
+            },
         )
 
         return
 
-    logger.info(
-
-        "handling_owner_state",
-
-        extra={
-
-            "chat_id": chat_id,
-            
-            "step": step
-        }
-    )
+    # ==========================================
+    # 🚀 DISPATCH HANDLER
+    # ==========================================
 
     await handler(
-
-        chat_id = chat_id,
-
-        text = text,
-
-        state = state
+        chat_id=chat_id,
+        text=text,
+        state=state,
     )

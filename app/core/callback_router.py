@@ -3,13 +3,20 @@
 # ==============================================
 
 import re
+from collections.abc import Awaitable
+from collections.abc import Callable
+from typing import Any
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
 
 # ==============================================
-# 🚀 CALLBACK ROUTER
+# 🧩 TYPES
+# ==============================================
+
+CallbackHandler = Callable[..., Awaitable[Any]]
+
+# ==============================================
+# 📌 CALLBACK ROUTER
 # ==============================================
 
 class CallbackRouter:
@@ -18,46 +25,33 @@ class CallbackRouter:
     # 🚀 INIT
     # ==========================================
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+    ) -> None:
 
-        self.routes = []
-
-        logger.info(
-
-            "callback_router_initialized"
-        )
+        self.routes: list[
+            tuple[
+                re.Pattern[str],
+                CallbackHandler,
+            ]
+        ] = []
 
     # ==========================================
     # ➕ REGISTER ROUTE
     # ==========================================
 
     def register(
-
         self,
-
+        *,
         pattern: str,
-
-        handler: callable
-
+        handler: CallbackHandler,
     ) -> None:
 
-        compiled = re.compile(pattern)
-
         self.routes.append(
-
-            (compiled, handler)
-        )
-
-        logger.info(
-
-            "callback_route_registered",
-
-            extra={
-
-                "pattern": pattern,
-
-                "handler": handler.__name__
-            }
+            (
+                re.compile(pattern),
+                handler,
+            )
         )
 
     # ==========================================
@@ -65,16 +59,11 @@ class CallbackRouter:
     # ==========================================
 
     async def dispatch(
-
         self,
-
         callback_data: str,
-
-        *args,
-
-        **kwargs
-
-    ) -> any:
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
 
         # ======================================
         # 🔍 SEARCH MATCHING ROUTE
@@ -82,49 +71,37 @@ class CallbackRouter:
 
         for regex, handler in self.routes:
 
-            match = regex.match(callback_data)
+            match = regex.match(
+                callback_data
+            )
 
-            # ==================================
-            # ✅ MATCH FOUND
-            # ==================================
+            if not match:
+                continue
 
-            if match:
+            logger.info(
+                "callback_route_matched",
+                extra={
+                    "callback_data": callback_data,
+                    "handler": handler.__name__,
+                },
+            )
 
-                logger.info(
-
-                    "callback_route_matched",
-
-                    extra={
-
-                        "callback_data": callback_data,
-
-                        "handler": handler.__name__
-                    }
-                )
-
-                return await handler(
-
-                    *args,
-
-                    callback_data = callback_data,
-
-                    match = match,
-
-                    **kwargs
-                )
+            return await handler(
+                *args,
+                callback_data=callback_data,
+                match=match,
+                **kwargs,
+            )
 
         # ======================================
         # 🚫 NO ROUTE FOUND
         # ======================================
 
         logger.warning(
-
             "callback_route_not_found",
-
             extra={
-
-                "callback_data": callback_data
-            }
+                "callback_data": callback_data,
+            },
         )
 
         return None

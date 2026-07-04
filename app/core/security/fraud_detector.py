@@ -2,43 +2,38 @@
 # كشف الاحتيال
 #=====================
 
-from app.core.security.fraud_storage import (
-    FraudStorage
-)
+from app.core.security.fraud_storage import FraudStorage
+from app.core.security.fraud_score import FraudScore
+from app.core.security.ban_manager import BanManager
+from app.core.security.captcha_manager import CaptchaManager
+from app.core.logger import logger
 
-from app.core.security.fraud_score import (
-    FraudScore
-)
-
-from app.core.security.ban_manager import (
-    BanManager
-)
-
-from app.core.security.captcha_manager import (
-    CaptchaManager
-)
 
 class FraudDetector:
 
     @classmethod
     async def flag(
-
         cls: type,
-
+        *,
         chat_id: int,
-
         severity: int
     ) -> None:
 
+        logger.info(
+            "fraud_flag_received",
+            extra={
+                "chat_id": chat_id,
+                "severity": severity
+            }
+        )
+
         await FraudStorage.add_score(
-
-            chat_id,
-
-            severity
+            chat_id=chat_id,
+            score=severity
         )
 
         total = await FraudStorage.get_score(
-            chat_id
+            chat_id=chat_id
         )
 
         # ======================================
@@ -47,8 +42,16 @@ class FraudDetector:
 
         if total >= FraudScore.MEDIUM:
 
+            logger.info(
+                "fraud_medium_detected",
+                extra={
+                    "chat_id": chat_id,
+                    "total_score": total
+                }
+            )
+
             await CaptchaManager.require(
-                chat_id
+                chat_id=chat_id
             )
 
         # ======================================
@@ -57,10 +60,16 @@ class FraudDetector:
 
         if total >= FraudScore.HIGH:
 
+            logger.info(
+                "fraud_high_detected",
+                extra={
+                    "chat_id": chat_id,
+                    "total_score": total
+                }
+            )
+
             await BanManager.ban(
-
-                chat_id,
-
+                chat_id=chat_id,
                 ttl=3600
             )
 
@@ -70,9 +79,15 @@ class FraudDetector:
 
         if total >= FraudScore.CRITICAL:
 
+            logger.info(
+                "fraud_critical_detected",
+                extra={
+                    "chat_id": chat_id,
+                    "total_score": total
+                }
+            )
+
             await BanManager.ban(
-
-                chat_id,
-
+                chat_id=chat_id,
                 ttl=86400 * 30
             )

@@ -1,6 +1,7 @@
 # ==============================================
 # 🛡️ RISK ENGINE
 # ==============================================
+from app.core.logger import logger
 
 class RiskEngine:
 
@@ -14,5 +15,12 @@ class RiskEngine:
         # TEMPORARY:
         # Security disabled
         # ======================================
+
+        logger.info(
+            "risk_analysis_completed",
+            extra={
+                "chat_id": chat_id
+            }
+        )
 
         return True

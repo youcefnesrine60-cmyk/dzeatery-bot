@@ -2,33 +2,33 @@
 # 🔄 STATE TRANSITION HELPER
 # ==============================================
 
-from app.repositories.state_repo import (
-    set_state
-)
+from typing import Any
 
-from app.helpers.state_machine import (
-    can_transition
-)
+from app.core.logger import logger
 
-from app.core.logger import (
-    logger
-)
+from app.helpers.state_machine import can_transition
+from app.repositories.state_repo import set_state
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+StateData = dict[str, Any]
 
 # ==============================================
 # 🔄 TRANSITION TO NEXT STATE
 # ==============================================
 
 async def transition_to(
-
     *,
-
     chat_id: int,
-
-    state: dict,
-
-    next_state: str
-
+    state: StateData,
+    next_state: str,
 ) -> bool:
+
+    # ==========================================
+    # 📥 CURRENT STATE
+    # ==========================================
 
     current = state["step"]
 
@@ -36,34 +36,28 @@ async def transition_to(
     # 🚫 INVALID TRANSITION
     # ==========================================
 
-    if not can_transition(
-
-        current_state = current,
-
-        next_state = next_state
+    if not await can_transition(
+        current_state=current,
+        next_state=next_state,
     ):
-
         logger.warning(
-
             "invalid_state_transition",
-
             extra={
-
                 "chat_id": chat_id,
-
                 "from": current,
-
-                "to": next_state
-            }
+                "to": next_state,
+            },
         )
-
         return False
 
     # ==========================================
     # 📚 SAVE HISTORY
     # ==========================================
 
-    state["history"].append(current)
+    state.setdefault(
+        "history",
+        [],
+    ).append(current)
 
     # ==========================================
     # 🔄 UPDATE STEP
@@ -75,11 +69,9 @@ async def transition_to(
     # 💾 SAVE STATE
     # ==========================================
 
-    set_state(
-
-        chat_id = chat_id,
-
-        state = state
+    await set_state(
+        chat_id=chat_id,
+        state=state,
     )
 
     # ==========================================
@@ -87,17 +79,12 @@ async def transition_to(
     # ==========================================
 
     logger.info(
-
-        "state_transition_success",
-
+        "state_transition_completed",
         extra={
-
             "chat_id": chat_id,
-
             "from": current,
-
-            "to": next_state
-        }
+            "to": next_state,
+        },
     )
 
     return True

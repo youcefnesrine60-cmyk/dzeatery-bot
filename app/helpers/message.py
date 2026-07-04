@@ -1,172 +1,103 @@
-# =====================================================
+# ==============================================
 # 🧠 UI HELPERS
-# =====================================================
+# ==============================================
 
-from app.core.logger import (
-    logger
-)
-
-from app.helpers.ui_manager import (
-    UIManager
-)
+from app.core.logger import logger
+from app.helpers.ui_manager import UIManager
 
 from app.views.texts import (
     RESTAU_NAME,
     WELCOME_MSG,
-    WILAYA_NAME
+    WILAYA_NAME,
 )
 
 from app.views.ui import (
     back_ui,
-    main_menu_ui
+    main_menu_ui,
 )
 
-# =====================================================
-# 📤 GENERIC SCREEN SENDER
-# =====================================================
+# ==============================================
+# 📤 SEND SCREEN
+# ==============================================
 
 async def send_screen(
-
     *,
-
     chat_id: int,
-
     text: str,
-
     reply_markup: dict | None = None,
-
     screen_name: str,
-
-    message_id: int | None = None
-
+    message_id: int | None = None,
 ) -> None:
 
     logger.info(
-
-        "sending_screen",
-
+        "screen_sent",
         extra={
             "chat_id": chat_id,
             "screen": screen_name,
-            "message_id": message_id
-        }
+            "message_id": message_id,
+        },
     )
 
     await UIManager.update(
-
-        chat_id = chat_id,
-
-        text = text,
-
-        reply_markup = reply_markup,
-
-        message_id = message_id
+        chat_id=chat_id,
+        text=text,
+        reply_markup=reply_markup,
+        message_id=message_id,
     )
 
-# =====================================================
+
+# ==============================================
 # 🏠 MAIN MENU
-# =====================================================
+# ==============================================
 
 async def send_main_menu(
-
     *,
-
     chat_id: int,
-
-    message_id: int | None = None
-
+    message_id: int | None = None,
 ) -> None:
 
-    logger.info(
-
-        "sending_main_menu",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
     await send_screen(
-
-        chat_id = chat_id,
-
-        text = WELCOME_MSG,
-
-        reply_markup = main_menu_ui(),
-
-        screen_name = "main_menu",
-
-        message_id = message_id
+        chat_id=chat_id,
+        text=WELCOME_MSG,
+        reply_markup=await main_menu_ui(),
+        screen_name="main_menu",
+        message_id=message_id,
     )
 
-# =====================================================
+
+# ==============================================
 # 🍽️ RESTAURANT NAME
-# =====================================================
+# ==============================================
 
 async def send_restaurant_name(
-
     *,
-
     chat_id: int,
-
-    message_id: int | None = None
-
+    message_id: int | None = None,
 ) -> None:
 
-    logger.info(
-
-        "sending_restaurant_name_screen",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
     await send_screen(
-
-        chat_id = chat_id,
-
-        text = RESTAU_NAME,
-
-        reply_markup = back_ui(),
-
-        screen_name = "restaurant",
-
-        message_id = message_id
+        chat_id=chat_id,
+        text=RESTAU_NAME,
+        reply_markup=await back_ui(),
+        screen_name="restaurant",
+        message_id=message_id,
     )
 
-# =====================================================
+
+# ==============================================
 # 🗺️ WILAYA NAME
-# =====================================================
+# ==============================================
 
 async def send_wilaya_name(
-
     *,
-
     chat_id: int,
-
-    message_id: int | None = None
-
+    message_id: int | None = None,
 ) -> None:
 
-    logger.info(
-
-        "sending_wilaya_name_screen",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
     await send_screen(
-
-        chat_id = chat_id,
-
-        text = WILAYA_NAME,
-
-        reply_markup = back_ui(),
-
-        screen_name = "wilaya",
-
-        message_id = message_id
+        chat_id=chat_id,
+        text=WILAYA_NAME,
+        reply_markup=await back_ui(),
+        screen_name="wilaya",
+        message_id=message_id,
     )

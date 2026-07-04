@@ -2,37 +2,45 @@
 # ⌨️ SEND CHAT ACTION
 # ============================================
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
+from app.services.telegram.base import _post
 
-from app.services.telegram.base import (
-    _post
-)
+# ============================================
+# 🧩 TYPES
+# ============================================
 
-async def send_typing(
+TelegramResponse = dict | None
 
+# ============================================
+# ⌨️ SEND TYPING ACTION
+# ============================================
+
+async def send_chat_action(
+    *,
     chat_id: int,
-
     action: str = "typing"
-
-) -> dict | None:
+) -> TelegramResponse:
+    
+    # ========================================
+    # 📝 LOG REQUEST
+    # ========================================
 
     logger.info(
 
         "sending_chat_action",
-
         extra={
             "chat_id": chat_id,
             "action": action
         }
     )
 
+    # ========================================
+    # 🚀 CALL TELEGRAM API
+    # ========================================
+
     return await _post(
-
-        "sendChatAction",
-
-        {
+        method="sendChatAction",
+        data={ 
             "chat_id": chat_id,
             "action": action
         }

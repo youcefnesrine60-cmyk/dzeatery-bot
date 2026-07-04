@@ -1,17 +1,13 @@
-#============================================
+# ==========================================
 # THE SINGLE SOURCE OF TRUTH
 # المصدر الوحيد للحقيقة
-#============================================
+# ==========================================
 
 import time
 
-from app.core.redis_client import (
-    redis_client
-)
+from app.core.logger import logger
+from app.core.redis_client import redis_client
 
-from app.core.logger import (
-    logger
-)
 
 # ==========================================
 # 🚫 LUA SLIDING WINDOW LIMITER
@@ -73,40 +69,69 @@ class SlidingWindowLimiter:
 
     @staticmethod
     async def is_allowed(
-
+        *,
         key: str,
-
         limit: int,
-
         window: int
     ) -> bool:
-        
+
+        # ==================================
+        # 🚫 REDIS UNAVAILABLE
+        # ==================================
+
         if not redis_client:
+
             logger.warning(
-                "Redis client is not initialized",
+                "redis_client_not_initialized",
                 extra={
                     "key": key
                 }
             )
+
             return True
 
-        now = time.time()
+        try:
 
-        redis_key = f"limit:{key}"
+            now = int(time.time())
 
-        allowed = redis_client.eval(
+            redis_key = f"limit:{key}"
 
-            LUA_SCRIPT,
+            allowed = redis_client.eval(
+                LUA_SCRIPT,
+                1,
+                redis_key,
+                now,
+                window,
+                limit
+            )
 
-            1,
+            # ==============================
+            # 🚫 RATE LIMITED
+            # ==============================
 
-            redis_key,
+            if allowed != 1:
 
-            now,
+                logger.warning(
+                    "rate_limit_exceeded",
+                    extra={
+                        "key": key,
+                        "limit": limit,
+                        "window": window
+                    }
+                )
 
-            window,
+                return False
 
-            limit
-        )
+            return True
 
-        return allowed == 1
+        except Exception as e:
+
+            logger.exception(
+                "sliding_window_limiter_failed",
+                extra={
+                    "key": key,
+                    "error": str(e)
+                }
+            )
+
+            return True

@@ -5,13 +5,12 @@
 from typing import Any
 
 from app.core.logger import logger
+from app.states.owner_states import OwnerStates
 
 from app.repositories.state_repo import (
     get_state,
     set_state
 )
-
-from app.states.owner_states import OwnerStates
 
 # ==============================================
 # 🧹 STEP CLEANUP MAP
@@ -67,16 +66,12 @@ STEP_CLEANUP: dict[str, list[str]] = {
 # 🔙 GO BACK
 # ==============================================
 
-def go_back(
-
+async def go_back(
     *,
-
     chat_id: int
-
 ) -> str | None:
 
-    state: dict[str, Any] | None = get_state(
-
+    state: dict[str, Any] | None = await get_state(
         chat_id = chat_id
     )
 
@@ -87,14 +82,11 @@ def go_back(
     if not state or not isinstance(state, dict):
 
         logger.warning(
-
             "navigation_invalid_state",
-
             extra={
                 "chat_id": chat_id
             }
         )
-
         return None
 
     history = state.get("history", [])
@@ -106,14 +98,11 @@ def go_back(
     if not isinstance(history, list):
 
         logger.warning(
-
             "navigation_invalid_history",
-
             extra={
                 "chat_id": chat_id
             }
         )
-
         return None
 
     # ==========================================
@@ -123,14 +112,11 @@ def go_back(
     if not history:
 
         logger.info(
-
             "navigation_history_empty",
-
             extra={
                 "chat_id": chat_id
             }
         )
-
         return None
 
     # ==========================================
@@ -146,7 +132,6 @@ def go_back(
     # ==========================================
 
     for key in STEP_CLEANUP.get(previous_step, []):
-
         state.pop(key, None)
 
     # ==========================================
@@ -159,23 +144,16 @@ def go_back(
     # 💾 SAVE STATE
     # ==========================================
 
-    set_state(
-
+    await set_state(
         chat_id = chat_id,
-
         state = state
     )
 
     logger.info(
-
         "navigation_back_success",
-
         extra={
-
             "chat_id": chat_id,
-
             "step": previous_step,
-
             "history_size": len(history)
         }
     )

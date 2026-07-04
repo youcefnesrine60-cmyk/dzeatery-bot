@@ -7,22 +7,10 @@ from app.services.telegram.telegram_client import (
     edit_message,
     delete_message
 )
-
-from app.services.telegram.callbacks import (
-    answer_callback
-)
-
-from app.services.telegram.webhook import (
-    set_webhook
-)
-
-from app.services.telegram.actions import (
-    send_typing
-)
-
-from app.services.telegram.client import (
-    close_http_client
-)
+from app.services.telegram.callbacks import answer_callback
+from app.services.telegram.webhook import set_webhook
+from app.services.telegram.actions import send_chat_action 
+from app.services.telegram.client import close_http_client
 
 __all__ = [
 
@@ -36,7 +24,7 @@ __all__ = [
 
     "set_webhook",
 
-    "send_typing",
+    "send_chat_action",
 
     "close_http_client"
 ]

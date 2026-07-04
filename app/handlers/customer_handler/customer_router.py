@@ -1,76 +1,87 @@
-from app.states.customer_states import (
-    CustomerStates
-)
-
-
-from app.core.logger import (
-    logger
-)
-
 # ==============================================
 # 🧠 CUSTOMER STATE ROUTER
+# توجيه رسائل الزبون حسب الحالة
+# ==============================================
+
+from app.core.logger import logger
+from app.states.customer_states import CustomerStates
+
+# ==============================================
+# 📥 استيراد معالجات الحالات
+# ==============================================
+
+from app.handlers.customer_handler.restaurant_step import handle_restaurant_step
+from app.handlers.customer_handler.product_step import handle_product_step
+from app.handlers.customer_handler.cart_step import handle_cart_step
+from app.handlers.customer_handler.checkout_step import handle_checkout_step
+from app.handlers.customer_handler.payment_step import handle_payment_step
+
+# ==============================================
+# 🗺️ MAP: الحالة ← المعالج
+# ==============================================
+
+STATE_HANDLERS = {
+    CustomerStates.RESTAURANT: handle_restaurant_step,
+    CustomerStates.PRODUCT: handle_product_step,
+    CustomerStates.CART: handle_cart_step,
+    CustomerStates.CHECKOUT: handle_checkout_step,
+    CustomerStates.PAYMENT: handle_payment_step,
+}
+
+# ==============================================
+# 🚀 HANDLE CUSTOMER STATE
 # ==============================================
 
 async def handle_customer_state(
-        
     *,
-
     chat_id: int,
-
     text: str,
-
-    state: dict
-
+    state: dict,
 ) -> None:
+    """
+    توجيه رسالة الزبون إلى المعالج المناسب حسب الحالة
+    
+    Args:
+        chat_id: معرف المستخدم
+        text: النص المرسل
+        state: حالة المستخدم الحالية
+    """
+    step = state.get("step")
 
-    step = state["step"]
-
-    if step == CustomerStates.RESTAURANT:
-
-        logger.info(
-
-            "Handling restaurant step for chat_id {chat_id} with text: {text}",
-
+    if not step:
+        logger.warning(
+            "customer_state_missing_step",
             extra={
                 "chat_id": chat_id,
-                "text_length": len(text)
-            }
+            },
         )
+        return
 
-        #await handle_restaurant_step(
-            #chat_id,
-            #text,
-            #state
-        #)
+    # الحصول على المعالج المناسب
+    handler = STATE_HANDLERS.get(step)
 
-    elif step == CustomerStates.PRODUCT:
-
-        logger.info(
-            "Handling product step for chat_id {chat_id} with text: {text}",
+    if not handler:
+        logger.warning(
+            "customer_state_handler_not_found",
             extra={
                 "chat_id": chat_id,
-                "text_length": len(text)
-            }
+                "step": step,
+            },
         )
+        return
 
-        #await handle_product_step(
-            #chat_id,
-            #text,
-            #state
-        #)
+    logger.info(
+        "handling_customer_state",
+        extra={
+            "chat_id": chat_id,
+            "step": step,
+            "text_length": len(text),
+        },
+    )
 
-    elif step == CustomerStates.CART:
-
-        logger.info(
-            "Handling cart step for chat_id {chat_id} with text: {text}",
-            extra={
-                "chat_id": chat_id,
-                "text_length": len(text)
-            }
-        )
-
-        #await handle_cart_step(
-            #chat_id,
-            #text,
-            #state
-        #)
+    # استدعاء المعالج
+    await handler(
+        chat_id=chat_id,
+        text=text,
+        state=state,
+    )

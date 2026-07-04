@@ -1,139 +1,154 @@
-#===========================
-# challenge system
-# أنظمة التحدي
-#===========================
+# ==============================================
+# 🛡️ CAPTCHA MANAGER
+# ==============================================
 
-from app.core.redis_client import (
-    redis_client
-)
+from app.core.logger import logger
+from app.core.redis_client import redis_client
 
-from app.core.logger import (
-    logger
-)
+
+# ==============================================
+# 🧩 CAPTCHA MANAGER
+# ==============================================
 
 class CaptchaManager:
 
     PREFIX = "captcha"
-
     ANSWER_PREFIX = "captcha_answer"
+    TTL = 300
 
     # ==========================================
-    # REQUIRE CAPTCHA
+    # ➕ REQUIRE CAPTCHA
     # ==========================================
 
     @classmethod
     async def require(
-
-        cls: type,
-
+        cls,
+        *,
         chat_id: int,
-
-        answer: str
+        answer: str,
     ) -> None:
 
-        if not redis_client:
-
-            logger.warning(
-                "Redis client is not initialized",
-                
-                extra={
-                    "chat_id": chat_id
-                }
-            )
+        if redis_client is None:
+            logger.warning("captcha_redis_unavailable")
             return
 
-        redis_client.setex(
+        await redis_client.setex(
             f"{cls.PREFIX}:{chat_id}",
-            300,
-            "1"
+            cls.TTL,
+            "1",
         )
 
-        redis_client.setex(
+        await redis_client.setex(
             f"{cls.ANSWER_PREFIX}:{chat_id}",
-            300,
-            answer
+            cls.TTL,
+            str(answer),
+        )
+
+        logger.info(
+            "captcha_required",
+            extra={
+                "chat_id": chat_id,
+            },
         )
 
     # ==========================================
-    # CHECK REQUIRED
+    # 🔍 CHECK CAPTCHA REQUIRED
     # ==========================================
 
     @classmethod
     async def is_required(
-        cls: type, 
-        chat_id: int
+        cls,
+        *,
+        chat_id: int,
     ) -> bool:
 
-        if not redis_client:
-            logger.warning(
-                "Redis client is not initialized",
-                extra={
-                    "chat_id": chat_id
-                }
-            )
+        if redis_client is None:
+            logger.warning("captcha_redis_unavailable")
             return False
 
-        return redis_client.exists(
+        required = bool(
+            await redis_client.exists(
+                f"{cls.PREFIX}:{chat_id}",
+            )
+        )
 
-            f"{cls.PREFIX}:{chat_id}"
+        logger.info(
+            "captcha_requirement_checked",
+            extra={
+                "chat_id": chat_id,
+                "required": required,
+            },
+        )
 
-        ) == 1
+        return required
 
     # ==========================================
-    # VERIFY CAPTCHA
+    # ✅ VERIFY CAPTCHA
     # ==========================================
 
     @classmethod
     async def verify(
-
-        cls: type,
-
+        cls,
+        *,
         chat_id: int,
-
-        user_answer: str
+        user_answer: str,
     ) -> bool:
 
-        if not redis_client:
+        if redis_client is None:
+            logger.warning("captcha_redis_unavailable")
+            return False
+
+        saved = await redis_client.get(
+            f"{cls.ANSWER_PREFIX}:{chat_id}",
+        )
+
+        if not saved:
             logger.warning(
-                "Redis client is not initialized",
+                "captcha_answer_missing",
                 extra={
-                    "chat_id": chat_id
-                }
+                    "chat_id": chat_id,
+                },
             )
             return False
 
-        saved = redis_client.get(
+        if isinstance(saved, bytes):
+            saved = saved.decode()
 
-            f"{cls.ANSWER_PREFIX}:{chat_id}"
+        verified = str(saved) == str(user_answer)
+
+        logger.info(
+            "captcha_verified",
+            extra={
+                "chat_id": chat_id,
+                "success": verified,
+            },
         )
 
-        return saved == str(user_answer)
+        return verified
 
     # ==========================================
-    # CLEAR
+    # 🧹 CLEAR CAPTCHA
     # ==========================================
 
     @classmethod
     async def clear(
-        cls: type, 
-        chat_id: int
+        cls,
+        *,
+        chat_id: int,
     ) -> None:
 
-        if not redis_client:
-            logger.warning(
-                "Redis client is not initialized",
-                extra={
-                    "chat_id": chat_id
-                }
-            )
+        if redis_client is None:
+            logger.warning("captcha_redis_unavailable")
             return
 
-        redis_client.delete(
-
-            f"{cls.PREFIX}:{chat_id}"
+        await redis_client.delete(
+            f"{cls.PREFIX}:{chat_id}",
+            f"{cls.ANSWER_PREFIX}:{chat_id}",
         )
 
-        redis_client.delete(
-
-            f"{cls.ANSWER_PREFIX}:{chat_id}"
+        logger.info(
+            "captcha_cleared",
+            extra={
+                "chat_id": chat_id,
+            },
         )

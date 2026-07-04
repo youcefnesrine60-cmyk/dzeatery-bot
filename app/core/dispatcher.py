@@ -2,32 +2,25 @@
 # 🚀 MAIN UPDATE DISPATCHER
 # ==============================================
 
-from app.handlers.callback_handler import (
-    handle_callback
-)
+from app.core.logger import logger
 
-from app.handlers.message_handler import (
-    handle_message
-)
+from app.handlers.callback_handler import handle_callback
+from app.handlers.message_handler import handle_message
+from app.handlers.webapp_handler import handle_webapp_data
 
-from app.handlers.webapp_handler import (
-    handle_webapp_data
-)
+# ==============================================
+# 🧩 TYPES
+# ==============================================
 
-from app.core.logger import (
-    logger
-)
+Update = dict[str, object]
 
 # ==============================================
 # 🚀 DISPATCH UPDATE
 # ==============================================
 
 async def dispatch_update(
-
     *,
-
-    data: dict
-
+    data: Update,
 ) -> None:
 
     try:
@@ -38,16 +31,8 @@ async def dispatch_update(
 
         if "callback_query" in data:
 
-            logger.info(
-
-                "dispatching_callback",
-
-                extra={}
-            )
-
             await handle_callback(
-
-                data = data
+                data=data,
             )
 
             return
@@ -56,54 +41,39 @@ async def dispatch_update(
         # 💬 MESSAGE
         # ======================================
 
-        if "message" in data:
+        if "message" not in data:
+            return
 
-            message = data["message"]
+        message = data["message"]
 
-            logger.info(
+        # ======================================
+        # 🌍 WEBAPP DATA
+        # ======================================
 
-                "dispatching_message",
+        if (
+            isinstance(message, dict)
+            and "web_app_data" in message
+        ):
 
-                extra={}
+            await handle_webapp_data(
+                data=data,
             )
 
-            # ==================================
-            # 🌍 WEBAPP DATA
-            # ==================================
+            return
 
-            if "web_app_data" in message:
+        # ======================================
+        # 💬 NORMAL MESSAGE
+        # ======================================
 
-                logger.info(
-
-                    "dispatching_webapp_data",
-
-                    extra={}
-                )
-
-                await handle_webapp_data(
-
-                    data = data
-                )
-
-                return
-
-            # ==================================
-            # 💬 NORMAL MESSAGE
-            # ==================================
-
-            await handle_message(
-
-                data = data
-            )
+        await handle_message(
+            data=data,
+        )
 
     except Exception as e:
 
         logger.exception(
-
             "update_dispatch_failed",
-
             extra={
-
-                "error": str(e)
-            }
+                "error": str(e),
+            },
         )

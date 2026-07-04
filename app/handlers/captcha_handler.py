@@ -31,6 +31,7 @@ async def send_captcha(
         "Initiating captcha challenge for user",
         
         extra={
+
             "chat_id": chat_id
         }
     )
@@ -42,7 +43,9 @@ async def send_captcha(
         "Generated captcha for user",
         
         extra={
+
             "chat_id": chat_id,
+
             "captcha": captcha
         }
     )
@@ -59,6 +62,7 @@ async def send_captcha(
         "Stored captcha answer for user",
 
         extra={
+
             "chat_id": chat_id
         }
     )
@@ -93,7 +97,9 @@ async def handle_captcha(
             "User provided non-numeric captcha response",
 
             extra={
+
                 "chat_id": chat_id,
+
                 "text_length": len(text)
             }
         )
@@ -113,7 +119,7 @@ async def handle_captcha(
 
         chat_id = chat_id,
 
-        text = text
+        user_answer = text
     )
 
     if not valid:
@@ -123,7 +129,9 @@ async def handle_captcha(
             "User provided incorrect captcha response",
             
             extra={
+
                 "chat_id": chat_id,
+
                 "text_length": len(text)
             }
         )
@@ -140,6 +148,7 @@ async def handle_captcha(
         return False
     
     await CaptchaManager.clear(
+
         chat_id = chat_id
     )
 
@@ -148,7 +157,9 @@ async def handle_captcha(
         "User provided correct captcha response",
 
         extra={
+
             "chat_id": chat_id,
+
             "text_length": len(text)
         }
     )
@@ -167,6 +178,7 @@ async def handle_captcha(
         "User completed captcha verification",
 
         extra={
+            
             "chat_id": chat_id
         }
     )

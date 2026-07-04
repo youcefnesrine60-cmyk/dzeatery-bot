@@ -1,136 +1,109 @@
-#===================================
-# bans / suspensions
-# الحظر/الإيقاف
-#===================================
+# ==============================================
+# 🚫 BANS / SUSPENSIONS
+# الحظر / الإيقاف
+# ==============================================
 
-from app.core.redis_client import (
-    redis_client
-)
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
+from app.core.redis_client import redis_client
 
-# ==========================================
+# ==============================================
 # 🚫 BAN MANAGER
-# ==========================================
+# ==============================================
 
 class BanManager:
 
     PREFIX = "banned"
 
-    # ======================================
+    # ==========================================
     # 🔨 BAN USER
-    # ======================================
+    # ==========================================
 
     @classmethod
     async def ban(
-
-        cls: type,
-
+        cls,
+        *,
         chat_id: int,
-
-        ttl: int = 3600
+        ttl: int = 3600,
     ) -> None:
-        
-        if not redis_client:
+
+        if redis_client is None:
             logger.warning(
-                "Redis client is not initialized",
-                extra={
-                    "chat_id": chat_id
-                }
+                "redis_client_not_initialized",
             )
             return
 
-        redis_client.setex(
-
+        await redis_client.setex(
             f"{cls.PREFIX}:{chat_id}",
-
             ttl,
-
-            "1"
+            "1",
         )
 
         logger.warning(
-
             "user_banned",
-
             extra={
                 "chat_id": chat_id,
-                "ttl": ttl
-            }
+                "ttl": ttl,
+            },
         )
 
-    # ======================================
+    # ==========================================
     # ✅ UNBAN USER
-    # ======================================
+    # ==========================================
 
     @classmethod
     async def unban(
-
-        cls: type,
-
-        chat_id: int
+        cls,
+        *,
+        chat_id: int,
     ) -> None:
 
-        if not redis_client:
+        if redis_client is None:
             logger.warning(
-                "Redis client is not initialized",
-                extra={
-                    "chat_id": chat_id
-                }
+                "redis_client_not_initialized",
             )
             return
 
-        redis_client.delete(
-
-            f"{cls.PREFIX}:{chat_id}"
+        await redis_client.delete(
+            f"{cls.PREFIX}:{chat_id}",
         )
 
         logger.info(
-
             "user_unbanned",
-
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
-    # ======================================
+    # ==========================================
     # 🚫 CHECK BAN
-    # ======================================
+    # ==========================================
 
     @classmethod
     async def is_banned(
-
-        cls: type,
-
-        chat_id: int
+        cls,
+        *,
+        chat_id: int,
     ) -> bool:
 
-        if not redis_client:
+        if redis_client is None:
             logger.warning(
-                "Redis client is not initialized",
-                extra={
-                    "chat_id": chat_id
-                }
+                "redis_client_not_initialized",
             )
             return False
 
-        banned = redis_client.exists(
-
-            f"{cls.PREFIX}:{chat_id}"
-
-        ) == 1
+        banned = bool(
+            await redis_client.exists(
+                f"{cls.PREFIX}:{chat_id}",
+            )
+        )
 
         if banned:
 
             logger.warning(
-
                 "banned_user_attempt",
-
                 extra={
-                    "chat_id": chat_id
-                }
+                    "chat_id": chat_id,
+                },
             )
 
         return banned

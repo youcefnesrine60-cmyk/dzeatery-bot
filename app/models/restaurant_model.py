@@ -1,7 +1,16 @@
+# ==============================================
+# 🍔 RESTAURANT SCHEMAS
+# ==============================================
+
 from pydantic import BaseModel
 
+# ==============================================
+# ➕ CREATE RESTAURANT
+# ==============================================
 
-class RestaurantCreate(BaseModel):
+class RestaurantCreate(
+    BaseModel,
+):
 
     name: str
 

@@ -1,224 +1,240 @@
 # ==============================================
 # 🍽️ RESTAURANT REPOSITORY
+# Async Psycopg3 Version
 # ==============================================
 
 from app.core.db import (
-    get_cursor
+    fetch, 
+    fetchrow, 
+    insert_returning_id
 )
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
 
 # ==============================================
-# 📥 GET ALL RESTAURANTS
+# 🧩 TYPES
 # ==============================================
 
-def get_all_restaurants() -> list[dict]:
+Restaurant = dict[str, str | int | float | None]
 
-    cur = get_cursor()
+# ==============================================
+# ➕ CREATE RESTAURANT
+# ==============================================
 
-    cur.execute("""
-        SELECT
-            id,
+async def create_restaurant(
+    *,
+    owner_id: int,
+    name: str,
+    restaurant_type: str,
+    phone: str,
+    wilaya: str,
+    lat: float,
+    lng: float,
+) -> int:
+
+    restaurant_id = await insert_returning_id(
+        """
+        INSERT INTO restaurants (
+            owner_id,
             name,
-            owner,
             type,
             phone,
             wilaya,
             lat,
-            lng,
-            chat_id
-        FROM restaurants
-        ORDER BY id DESC
-    """)
-
-    rows = cur.fetchall()
-
-    logger.info(
-
-        "restaurants_fetched",
-
-        extra={
-            "count": len(rows)
-        }
+            lng
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        owner_id,
+        name,
+        restaurant_type,
+        phone,
+        wilaya,
+        lat,
+        lng,
     )
 
-    restaurants = []
+    logger.info(
+        "restaurant_created",
+        extra={
+            "restaurant_id": restaurant_id,
+            "owner_id": owner_id,
+            "restaurant_name": name,
+        },
+    )
 
-    for row in rows:
+    return restaurant_id
 
-        restaurants.append({
-
-            "id": row[0],
-            "restaurant": row[1],
-            "owner": row[2],
-            "type": row[3],
-            "phone": row[4],
-            "wilaya": row[5],
-            "lat": row[6],
-            "lng": row[7],
-            "chat_id": row[8]
-        })
-
-    return restaurants
 
 # ==============================================
-# 🔍 CHECK RESTAURANT EXISTS
+# 🔍 BASE SELECT
 # ==============================================
 
-def restaurant_exists(
+_RESTAURANT_SELECT = """
+SELECT
+    id,
+    owner_id,
+    name,
+    type,
+    phone,
+    wilaya,
+    lat,
+    lng
+FROM restaurants
+"""
 
+
+def _row_to_dict(row) -> Restaurant:
+    return {
+        "id": row["id"],
+        "owner_id": row["owner_id"],
+        "name": row["name"],
+        "type": row["type"],
+        "phone": row["phone"],
+        "wilaya": row["wilaya"],
+        "lat": row["lat"],
+        "lng": row["lng"],
+    }
+
+
+# ==============================================
+# 🔍 RESTAURANT EXISTS FOR OWNER
+# ==============================================
+
+async def restaurant_exists_for_owner(
     *,
-
-    name: str
-
+    owner_id: int,
+    name: str,
+    phone: str,
+    wilaya: str,
+    lat: float,
+    lng: float,
 ) -> bool:
 
-    cur = get_cursor()
-
-    cur.execute("""
+    row = await fetchrow(
+        """
         SELECT 1
         FROM restaurants
-        WHERE LOWER(name) = LOWER(%s)
-    """, (name,))
+        WHERE owner_id = %s
+          AND LOWER(name) = LOWER(%s)
+          AND phone = %s
+          AND LOWER(wilaya) = LOWER(%s)
+          AND lat = %s
+          AND lng = %s
+        LIMIT 1
+        """,
+        owner_id,
+        name,
+        phone,
+        wilaya,
+        lat,
+        lng,
+    )
 
-    result = cur.fetchone()
-
-    exists = result is not None
+    exists = row is not None
 
     logger.info(
-
         "restaurant_exists_checked",
-
         extra={
-            "restaurant": name,
-            "exists": exists
-        }
+            "owner_id": owner_id,
+            "restaurant_name": name,
+            "exists": exists,
+        },
     )
 
     return exists
 
-# ==============================================
-# 💾 SAVE RESTAURANT
-# ==============================================
-
-def save_restaurant(
-
-    *,
-
-    data: dict
-
-) -> None:
-
-    cur = get_cursor()
-
-    cur.execute("""
-        INSERT INTO restaurants
-        (
-            name,
-            owner,
-            type,
-            phone,
-            wilaya,
-            lat,
-            lng,
-            chat_id
-        )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-    """, (
-        data["restaurant"],
-        data["owner"],
-        data["type"],
-        data["phone"],
-        data["wilaya"],
-        data["lat"],
-        data["lng"],
-        data["chat_id"]
-    ))
-
-    logger.info(
-
-        "restaurant_saved",
-
-        extra={
-
-            "chat_id": data["chat_id"],
-
-            "restaurant": data["restaurant"]
-        }
-    )
 
 # ==============================================
 # 🔍 GET RESTAURANT BY ID
 # ==============================================
 
-def get_restaurant_by_id(
-
+async def get_restaurant_by_id(
     *,
+    restaurant_id: int,
+) -> Restaurant | None:
 
-    restaurant_id: int
-
-) -> dict | None:
-
-    cur = get_cursor()
-
-    cur.execute("""
-        SELECT
-            id,
-            name,
-            owner,
-            type,
-            phone,
-            wilaya,
-            lat,
-            lng,
-            chat_id
-        FROM restaurants
-        WHERE id = %s
-    """, (restaurant_id,))
-
-    row = cur.fetchone()
-
-    # ==========================================
-    # 🚫 NOT FOUND
-    # ==========================================
-
-    if not row:
-
-        logger.warning(
-
-            "restaurant_not_found",
-
-            extra={
-                "restaurant_id": restaurant_id
-            }
-        )
-
-        return None
-
-    # ==========================================
-    # ✅ FOUND
-    # ==========================================
-
-    logger.info(
-
-        "restaurant_found",
-
-        extra={
-            "restaurant_id": restaurant_id
-        }
+    row = await fetchrow(
+        _RESTAURANT_SELECT + " WHERE id = %s",
+        restaurant_id,
     )
 
-    return {
+    if not row:
+        logger.warning(
+            "restaurant_not_found",
+            extra={"restaurant_id": restaurant_id},
+        )
+        return None
 
-        "id": row[0],
-        "restaurant": row[1],
-        "owner": row[2],
-        "type": row[3],
-        "phone": row[4],
-        "wilaya": row[5],
-        "lat": row[6],
-        "lng": row[7],
-        "chat_id": row[8]
-    }
+    logger.info(
+        "restaurant_found",
+        extra={
+            "restaurant_id": restaurant_id,
+            "owner_id": row["owner_id"],
+        },
+    )
+
+    return _row_to_dict(row)
+
+
+# ==============================================
+# 🔍 GET OWNER RESTAURANTS
+# ==============================================
+
+async def get_restaurants_by_owner(
+    *,
+    owner_id: int,
+) -> list[Restaurant]:
+    
+    """
+    جلب جميع مطاعم مالك معين
+    
+    Args:
+        owner_id: معرف المالك
+        
+    Returns:
+        list[Restaurant]: قائمة المطاعم
+    """
+
+    rows = await fetch(
+        _RESTAURANT_SELECT + """
+        WHERE owner_id = %s
+        ORDER BY id DESC
+        """,
+        owner_id,
+    )
+
+    restaurants = [_row_to_dict(row) for row in rows]
+
+    logger.info(
+        "owner_restaurants_fetched",
+        extra={
+            "owner_id": owner_id,
+            "count": len(restaurants),
+        },
+    )
+
+    return restaurants
+
+
+# ==============================================
+# 📥 GET ALL RESTAURANTS
+# ==============================================
+
+async def get_all_restaurants() -> list[Restaurant]:
+
+    rows = await fetch(
+        _RESTAURANT_SELECT + """
+        ORDER BY id DESC
+        """
+    )
+
+    restaurants = [_row_to_dict(row) for row in rows]
+
+    logger.info(
+        "restaurants_fetched",
+        extra={"count": len(restaurants)},
+    )
+
+    return restaurants

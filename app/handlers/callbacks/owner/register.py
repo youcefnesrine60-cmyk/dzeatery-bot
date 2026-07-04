@@ -6,118 +6,77 @@
 # ==============================================
 import re
 
-from app.repositories.user_repo import (
-    has_consent
-)
-
-from app.helpers.ui_manager import (
-    UIManager
-)
-
-from app.repositories.state_repo import (
-    set_state
-)
-
-from app.repositories.user_repo import (
-    give_consent
-)
-
-from app.states.owner_states import (
-    OwnerStates
-)
-
-from app.views.texts import (
-     OWNER_NAME
-)
-
-from app.handlers.callbacks.customer.restaurant_list import (
-    show_restaurants
-)
-
-from app.core.logger import (
-    logger
-)
-
+from app.repositories.user_repo import has_consent
+from app.helpers.ui_manager import UIManager
+from app.repositories.state_repo import set_state
+from app.repositories.user_repo import give_consent
+from app.states.owner_states import OwnerStates
+from app.views.texts import OWNER_NAME
+from app.handlers.callbacks.customer.restaurant_list import show_restaurants
+from app.core.logger import logger
 from app.views.ui import *
-
 
 # ==============================================
 # 👤 OWNER
 # ==============================================
 
 async def owner_callback(
+    *,
     chat_id: int,
     message_id: int,
     callback_data: str,
     match: re.Match
 ) -> None:
 
-    if not has_consent(chat_id):
+    if not await has_consent(
+        chat_id = chat_id
+    ):
+
         logger.info(
-
             "owner_no_consent",
-
             extra={
-
                 "chat_id": chat_id
             }
         )
 
         await UIManager.update(
-                 
             chat_id = chat_id,
-                
-            text = consent_text(),
-
-            reply_markup = consent_ui("owner"),
-
+            text = await consent_text(),
+            reply_markup = await consent_ui(
+                role = "owner"
+            ),
             message_id = message_id
         )
-
         return
             
-    
-    logger.info(
-                
+    logger.info(    
         "owner_callback_triggered",
-
         extra={
-
             "chat_id": chat_id
         }
     )
 
-    set_state(
-        
-        chat_id, {
-         
+    await set_state(
+        chat_id = chat_id, 
+        state = {
             "flow": "owner",
-
             "step": OwnerStates.NAME,
-
             "history": []
         }
     )
 
     logger.info(
-         
         "owner_flow_started",
-
         extra={
-
             "chat_id": chat_id
 
         }
     )
 
     await UIManager.update(
-
         chat_id = chat_id,
-
         text = OWNER_NAME,
-
-        reply_markup = back_ui(),
-
+        reply_markup = await back_ui(),
         message_id = message_id
     )
 
@@ -127,75 +86,58 @@ async def owner_callback(
 # ==============================================
 
 async def consent_callback(
+    *,
     chat_id: int,
     message_id: int,
     callback_data: str,
     match: re.Match
 ) -> None:
 
-    give_consent(chat_id)
+    await give_consent(
+        chat_id = chat_id)
 
     if callback_data.endswith("owner"):
 
         logger.info(
-
             "owner_given_consent",
-
              extra={
-
                 "chat_id": chat_id
             }
         )
 
-        set_state(
-            
-            chat_id, {
-             
+        await set_state(
+            chat_id = chat_id, 
+            state = {
                 "flow": "owner",
-
                 "step": OwnerStates.NAME,
-
                 "history": []
             }
         )
 
         logger.info(
-             
             "owner_flow_started_after_consent",
-
             extra={
-
                 "chat_id": chat_id
-                
             }
         )
 
         await UIManager.update(
-
             chat_id = chat_id,
-
             text = OWNER_NAME,
-
-            reply_markup = back_ui(),
-
+            reply_markup = await back_ui(),
             message_id = message_id
         )
 
     else:
 
         logger.info(
-            
             "customer_given_consent",
-
             extra={
-
                 "chat_id": chat_id
             }
         )
 
         await show_restaurants(
-
             chat_id = chat_id,
-            
             message_id = message_id
         )

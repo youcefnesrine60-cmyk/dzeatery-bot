@@ -1,73 +1,69 @@
-#=========Consent===========
+# ========================================
+# ✅ CONSENT REPOSITORY
+# Async Psycopg3 Version
+# ==========================================
 
 from app.core.db import (
-    get_cursor,
-    commit
+    execute, 
+    fetchrow
 )
 
-from app.core.logger import (
-    logger
-)
+from app.core.logger import logger
+
 
 # ==========================================
 # ✅ CHECK CONSENT
 # ==========================================
 
-def has_consent(chat_id: int) -> bool:
+async def has_consent(
+    *,
+    chat_id: int
+) -> bool:
 
-    cur = get_cursor()
-
-    cur.execute(
-        "SELECT 1 FROM users WHERE chat_id=%s",
-        (chat_id,)
+    row = await fetchrow(
+        """
+        SELECT 1
+        FROM users
+        WHERE chat_id = %s
+          AND consent = TRUE
+        LIMIT 1
+        """,
+        chat_id,
     )
 
-    result = cur.fetchone()
+    result = row is not None
 
     logger.info(
-
-        f"Checked consent for chat_id: {chat_id}",
-
+        "checked_consent",
         extra={
             "chat_id": chat_id,
-            "has_consent": result is not None
-        }
+            "has_consent": result,
+        },
     )
 
-    return result is not None
+    return result
 
 
 # ==========================================
 # ✅ GIVE CONSENT
 # ==========================================
 
-def give_consent(chat_id: int) -> None:
+async def give_consent(
+    *,
+    chat_id: int
+) -> None:
 
-    cur = get_cursor()
-
-    cur.execute(
-
+    await execute(
         """
         INSERT INTO users (chat_id, consent)
         VALUES (%s, TRUE)
         ON CONFLICT (chat_id)
-        DO NOTHING
+        DO UPDATE SET consent = TRUE
         """,
-
-        (chat_id,)
+        chat_id,
     )
 
-    # ======================================
-    # 💾 SAVE CHANGES
-    # ======================================
-
-    commit()
-
     logger.info(
-
-        f"Consent given for chat_id: {chat_id}",
-
-        extra={
-            "chat_id": chat_id
-        }
+        "consent_given",
+        extra={"chat_id": chat_id},
     )

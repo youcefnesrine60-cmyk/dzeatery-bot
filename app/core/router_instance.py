@@ -1,5 +1,3 @@
-from app.core.callback_router import (
-    CallbackRouter
-)
+from app.core.callback_router import CallbackRouter
 
 router = CallbackRouter()

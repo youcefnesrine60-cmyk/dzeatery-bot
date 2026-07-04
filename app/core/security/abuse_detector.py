@@ -2,12 +2,8 @@
 # كشف الاستغلال
 #=============================
 
-from app.core.redis_client import (
-    redis_client
-)
-from app.core.logger import (
-    logger
-)
+from app.core.redis_client import redis_client
+from app.core.logger import logger
 
 
 # ==========================================
@@ -28,43 +24,37 @@ class AbuseDetector:
 
     @classmethod
     async def flag(
-
+        *,
         cls: type,
-
         chat_id: int,
-
         score: int = 1
     ) -> int:
         
         if not redis_client:
+
             logger.warning(
                 "Redis client is not initialized",
                 extra={
                     "chat_id": chat_id
                 }
             )
+
             return 0
 
         key = f"{cls.PREFIX}:{chat_id}"
 
         count = redis_client.incrby(
-
             key,
-
             score
         )
 
         redis_client.expire(
-
             key,
-
             cls.WINDOW
         )
 
         logger.warning(
-
             "abuse_flagged",
-
             extra={
                 "chat_id": chat_id,
                 "score": score,
@@ -80,19 +70,20 @@ class AbuseDetector:
 
     @classmethod
     async def is_abusive(
-
+        *,
         cls: type,
-
         chat_id: int
     ) -> bool:
 
         if not redis_client:
+
             logger.warning(
                 "Redis client is not initialized",
                 extra={
                     "chat_id": chat_id
                 }
             )
+
             return False
 
         key = f"{cls.PREFIX}:{chat_id}"
@@ -101,6 +92,13 @@ class AbuseDetector:
 
         if not count:
 
+            logger.info(
+                "No abuse detected",
+                extra={
+                    "chat_id": chat_id
+                }
+            )
+
             return False
 
         abusive = int(count) >= cls.LIMIT
@@ -108,9 +106,7 @@ class AbuseDetector:
         if abusive:
 
             logger.warning(
-
                 "abusive_user_detected",
-
                 extra={
                     "chat_id": chat_id,
                     "count": int(count)

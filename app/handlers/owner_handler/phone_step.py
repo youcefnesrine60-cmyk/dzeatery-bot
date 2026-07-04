@@ -1,78 +1,74 @@
-from app.services.validation import (
-    validate_phone,
-    normalize_phone
-)
-
-from app.helpers.state_transition import (
-    transition_to
-)
-
-from app.helpers.ui_manager import (
-    UIManager
-)
-
-from app.views.ui import (
-    back_ui,
-    confirm_ui
-)
-
-from app.states.owner_states import (
-    OwnerStates
-)
-
-from app.core.logger import (
-    logger
-)
-
-
 # ==============================================
 # 📞 PHONE STEP
 # ==============================================
 
+from typing import Any
+
+from app.core.logger import logger
+
+from app.helpers.state_transition import transition_to
+from app.helpers.ui_manager import UIManager
+
+from app.services.validation import (
+    normalize_phone,
+    validate_phone,
+)
+
+from app.states.owner_states import OwnerStates
+
+from app.views.ui import (
+    back_ui,
+    confirm_ui,
+)
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+StateData = dict[str, Any]
+
+# ==============================================
+# 📞 HANDLE PHONE STEP
+# ==============================================
+
 async def handle_phone_step(
-
     *,
-
     chat_id: int,
-
     text: str,
-
-    state: dict
-
+    state: StateData,
 ) -> None:
 
     # ==========================================
     # ☎️ NORMALIZE PHONE
     # ==========================================
 
-    normalized_phone = normalize_phone(text)
+    normalized_phone = await normalize_phone(
+        text=text,
+    )
 
     # ==========================================
     # 🚫 INVALID PHONE
     # ==========================================
 
-    if not validate_phone(normalized_phone):
-
+    if not await validate_phone(
+        text=normalized_phone,
+        chat_id=chat_id,
+    ):
         logger.warning(
-
             "invalid_phone",
-
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = (
-                "❌ رقم هاتف غير صحيح.\n\n"
+            chat_id=chat_id,
+            text=(
+                "❌ رقم الهاتف غير صحيح.\n\n"
                 "📞 مثال صحيح:\n"
                 "0551234567"
             ),
-
-            reply_markup = back_ui()
+            reply_markup=await back_ui(),
         )
 
         return
@@ -87,54 +83,25 @@ async def handle_phone_step(
     # 🔄 TRANSITION
     # ==========================================
 
-    success = await transition_to(
-
-        chat_id = chat_id,
-
-        state = state,
-
-        next_state = OwnerStates.CONFIRM
-    )
-
-    # ==========================================
-    # 🚫 TRANSITION FAILED
-    # ==========================================
-
-    if not success:
-
+    if not await transition_to(
+        chat_id=chat_id,
+        state=state,
+        next_state=OwnerStates.CONFIRM,
+    ):
         logger.error(
-
-            "phone_step_transition_failed",
-
+            "phone_transition_failed",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
-
         return
 
     # ==========================================
-    # ✅ SUCCESS
-    # ==========================================
-
-    logger.info(
-
-        "phone_step_transition_success",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
-    # ==========================================
-    # ⚠️ CONFIRM SCREEN
+    # ⚠️ SHOW CONFIRMATION
     # ==========================================
 
     await UIManager.update(
-
-        chat_id = chat_id,
-
-        text = "⚠️ هل تؤكد عملية التسجيل؟",
-
-        reply_markup = confirm_ui()
+        chat_id=chat_id,
+        text="⚠️ هل تؤكد عملية التسجيل؟",
+        reply_markup=await confirm_ui(),
     )

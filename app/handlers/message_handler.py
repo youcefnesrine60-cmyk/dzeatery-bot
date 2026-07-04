@@ -75,8 +75,22 @@ async def handle_message(
     # CAPTCHA
     # ==============================================
 
+    logger.info(
+
+        "Received message",
+
+        extra={
+
+            "chat_id": chat_id,
+
+            "text_length": len(text)
+        }
+    )
+
     captcha_required = await CaptchaManager.is_required(
+
         chat_id = chat_id
+        
     )
 
     if captcha_required:
@@ -86,6 +100,7 @@ async def handle_message(
             "captcha_required",
 
             extra={
+
                 "chat_id": chat_id
             }
         )
@@ -104,6 +119,7 @@ async def handle_message(
                 "captcha_failed",
 
                 extra={
+
                     "chat_id": chat_id
                 }
             )
@@ -121,6 +137,7 @@ async def handle_message(
             "start_command",
 
             extra={
+
                 "chat_id": chat_id
             }
         )
@@ -141,6 +158,16 @@ async def handle_message(
     # =================================================
 
     if text == "🔙 رجوع":
+
+        logger.info(
+
+            "back_button_pressed",
+
+            extra={
+
+                "chat_id": chat_id
+            }
+        )
 
         previous = go_back(
 
@@ -163,6 +190,7 @@ async def handle_message(
             try:
 
                 delete_state(
+
                     chat_id = chat_id
                 )
 
@@ -171,6 +199,7 @@ async def handle_message(
                     "state_deleted_on_back",
 
                     extra={
+
                         "chat_id": chat_id
                     }
                 )
@@ -182,7 +211,9 @@ async def handle_message(
                     "state_cleanup_failed",
 
                     extra={
+
                         "chat_id": chat_id,
+
                         "error": str(e)
                     }
                 )
@@ -192,11 +223,13 @@ async def handle_message(
                 "no_previous_state",
 
                 extra={
+
                     "chat_id": chat_id
                 }
             )
 
             await send_main_menu(
+                
                 chat_id = chat_id
             )
 
@@ -207,7 +240,9 @@ async def handle_message(
     # =================================================
 
     state = get_state(
+
         chat_id = chat_id
+
     )
 
     if not state:

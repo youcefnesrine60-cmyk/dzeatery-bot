@@ -1,12 +1,24 @@
-from pydantic import BaseModel
+# ==============================================
+# 👤 USER STATE SCHEMA
+# ==============================================
+
 from typing import Optional
 
+from pydantic import BaseModel, Field
 
-class UserState(BaseModel):
+# ==============================================
+# 🧠 USER STATE
+# ==============================================
+
+class UserState(
+    BaseModel,
+):
 
     step: str
 
-    history: list[str] = []
+    history: list[str] = Field(
+        default_factory=list,
+    )
 
     owner: Optional[str] = None
 

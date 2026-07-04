@@ -1,66 +1,34 @@
 # ==============================================
 # ✅ CONFIRM CALLBACK
+# Registration Approval
+# استدعاء الخدمة وعرض النتيجة للمستخدم
+# Async Version
 # ==============================================
 
 import re
 
-from app.helpers.ui_manager import (
-    UIManager
-)
+from app.core.logger import logger
 
-from app.repositories.state_repo import (
-    get_state,
-    delete_state
-)
-
-from app.repositories.restaurant_repo import (
-    save_restaurant,
-    restaurant_exists
-)
-
-from app.core.db import (
-    commit,
-    rollback
-)
-
-from app.core.middleware.rate_limit import (
-    rate_limit
-)
-
-from app.core.middleware.idempotency import (
-    Idempotency
-)
-
-from app.core.logger import (
-    logger
-)
-
-# ==============================================
-# 🚫 RATE LIMIT
-# ==============================================
-
-@rate_limit(
-    limit = 2,
-    window = 15,
-    key_prefix = "confirm"
-)
+from app.core.middleware.idempotency import Idempotency
+from app.core.middleware.rate_limit import rate_limit
+from app.helpers.ui_manager import UIManager
+from app.services.business.registration_service import approve_registration
 
 # ==============================================
 # ✅ CONFIRM CALLBACK
 # ==============================================
 
+@rate_limit(
+    limit=2,
+    window=15,
+    key_prefix="confirm",
+)
 async def confirm_callback(
-
     *,
-
     chat_id: int,
-
     message_id: int,
-
     callback_data: str,
-
-    match: re.Match
-
+    match: re.Match[str],
 ) -> None:
 
     # ==========================================
@@ -68,229 +36,86 @@ async def confirm_callback(
     # ==========================================
 
     allowed = await Idempotency.protect(
-
-        f"confirm:{chat_id}",
-
-        ttl = 20
+        key=f"confirm:{chat_id}",
+        ttl=20,
     )
 
     if not allowed:
 
         logger.warning(
-
-            "confirm_duplicate_request",
-
-            extra={
-                "chat_id": chat_id
-            }
-        )
-
-        return
-
-    # ==========================================
-    # 📦 LOAD STATE
-    # ==========================================
-
-    state = get_state(
-
-        chat_id = chat_id
-    )
-
-    if not state:
-
-        logger.warning(
-
-            "confirm_state_missing",
-
-            extra={
-                "chat_id": chat_id
-            }
-        )
-
-        return
-
-    # ==========================================
-    # ✅ REQUIRED FIELDS
-    # ==========================================
-
-    required_fields = [
-
-        "owner",
-        "restaurant",
-        "type",
-        "phone",
-        "wilaya",
-        "lat",
-        "lng"
-    ]
-
-    missing_fields = [
-
-        field for field in required_fields
-        if field not in state
-    ]
-
-    if missing_fields:
-
-        logger.warning(
-
-            "confirm_missing_fields",
-
+            "duplicate_confirm_request",
             extra={
                 "chat_id": chat_id,
-                "missing_fields": missing_fields
-            }
-        )
-
-        await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ بيانات ناقصة، أعد المحاولة.",
-
-            message_id = message_id
+            },
         )
 
         return
-
-    # ==========================================
-    # 🚫 DUPLICATE RESTAURANT
-    # ==========================================
-
-    if restaurant_exists(
-
-        name = state["restaurant"]
-    ):
-
-        logger.info(
-
-            "restaurant_already_exists",
-
-            extra={
-
-                "chat_id": chat_id,
-
-                "restaurant": state["restaurant"]
-            }
-        )
-
-        await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ هذا المحل مسجل مسبقًا.",
-
-            message_id = message_id
-        )
-
-        return
-
-    # ==========================================
-    # 💾 PREPARE DATA
-    # ==========================================
-
-    state["chat_id"] = chat_id
-
-    # ==========================================
-    # 💾 SAVE RESTAURANT
-    # ==========================================
 
     try:
 
-        save_restaurant(
+        # ======================================
+        # ✅ APPROVE REGISTRATION
+        # ======================================
 
-            data = state
+        result = await approve_registration(
+            chat_id=chat_id,
         )
-
-        commit()
 
         logger.info(
-
-            "restaurant_registered",
-
+            "registration_confirmed",
             extra={
-
                 "chat_id": chat_id,
-
-                "restaurant": state["restaurant"]
-            }
+                "owner_id": result["owner_id"],
+                "restaurant_id": result["restaurant_id"],
+                "subscription_id": result["subscription_id"],
+            },
         )
 
-    except Exception as e:
+        # ======================================
+        # ✅ SUCCESS MESSAGE
+        # ======================================
 
-        rollback()
+        await UIManager.update(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=(
+                "🎉 تم تسجيل المحل بنجاح.\n\n"
+                "✅ تم إنشاء حساب المالك.\n"
+                "✅ تم إنشاء المطعم.\n"
+                "✅ تم إنشاء إحصائيات المطعم.\n"
+                "✅ تم تفعيل الاشتراك التجريبي.\n\n"
+                "📦 يمكنك الآن البدء بإضافة الأقسام والمنتجات."
+            ),
+        )
 
-        logger.exception(
+    except ValueError as error:
 
-            "restaurant_registration_failed",
-
+        logger.warning(
+            "registration_confirm_validation_error",
             extra={
-
                 "chat_id": chat_id,
-
-                "restaurant": state.get("restaurant"),
-
-                "error": str(e)
-            }
+                "error": str(error),
+            },
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ حدث خطأ أثناء التسجيل، حاول مجددًا.",
-
-            message_id = message_id
+            chat_id=chat_id,
+            message_id=message_id,
+            text="❌ تعذر إكمال عملية التسجيل.",
         )
 
-        return
-
-    # ==========================================
-    # 🧹 DELETE STATE
-    # ==========================================
-
-    try:
-
-        delete_state(
-
-            chat_id = chat_id
-        )
-
-    except Exception as e:
+    except Exception as error:
 
         logger.exception(
-
-            "state_cleanup_failed",
-
+            "confirm_callback_failed",
             extra={
-
                 "chat_id": chat_id,
-
-                "error": str(e)
-            }
+                "error": str(error),
+            },
         )
 
-    # ==========================================
-    # ✅ SUCCESS MESSAGE
-    # ==========================================
-
-    logger.info(
-
-        "confirm_success",
-
-        extra={
-            "chat_id": chat_id
-        }
-    )
-
-    await UIManager.update(
-
-        chat_id = chat_id,
-
-        text = (
-            "🎉 تم تسجيل المحل بنجاح.\n\n"
-            "📞 سيتم التواصل معكم قريبًا بعد مراجعة الطلب."
-        ),
-
-        message_id = message_id
-    )
+        await UIManager.update(
+            chat_id=chat_id,
+            message_id=message_id,
+            text="❌ حدث خطأ أثناء معالجة الطلب.",
+        )
