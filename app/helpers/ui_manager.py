@@ -23,7 +23,7 @@ class UIManager:
         *,
         chat_id: int,
         text: str,
-        reply_markup: ReplyMarkup = None,
+        reply_markup: dict | None = None,
         message_id: int | None = None
     ) -> TelegramResponse:
 
