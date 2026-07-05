@@ -1,185 +1,158 @@
-from app.helpers.ui_manager import (
-    UIManager
-)
+# ==============================================
+# 🤖 CAPTCHA SERVICE
+# ==============================================
 
-from app.core.security.captcha_manager import (
-    CaptchaManager
-)
+from typing import Any
 
-from app.core.security.captcha_generator import (
-    CaptchaGenerator
-)
+from app.core.logger import logger
 
-from app.core.logger import (
-    logger
-)
+from app.core.security.captcha_generator import CaptchaGenerator
+from app.core.security.captcha_manager import CaptchaManager
+
+from app.helpers.ui_manager import UIManager
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+CaptchaData = dict[str, Any]
 
 # ==============================================
 # 🚀 SEND CAPTCHA CHALLENGE
 # ==============================================
 
 async def send_captcha(
-        
-        *,
-
-        chat_id: int
-
+    *,
+    chat_id: int,
 ) -> None:
 
+    # ==========================================
+    # 🚀 START CAPTCHA CHALLENGE
+    # ==========================================
+
     logger.info(
-
-        "Initiating captcha challenge for user",
-        
+        "captcha_challenge_started",
         extra={
-
-            "chat_id": chat_id
-        }
-    )
-
-    captcha = CaptchaGenerator.generate()
-
-    logger.debug(
-
-        "Generated captcha for user",
-        
-        extra={
-
             "chat_id": chat_id,
-
-            "captcha": captcha
-        }
+        },
     )
+
+    # ==========================================
+    # 🤖 GENERATE CAPTCHA
+    # ==========================================
+
+    captcha: CaptchaData = CaptchaGenerator.generate()
+
+    # ==========================================
+    # 💾 STORE EXPECTED ANSWER
+    # ==========================================
 
     await CaptchaManager.require(
-
-        chat_id = chat_id,
-
-        answer = captcha["answer"]
+        chat_id=chat_id,
+        answer=captcha["answer"],
     )
 
     logger.info(
-
-        "Stored captcha answer for user",
-
+        "captcha_answer_stored",
         extra={
-
-            "chat_id": chat_id
-        }
+            "chat_id": chat_id,
+        },
     )
+
+    # ==========================================
+    # 📤 SEND CAPTCHA TO USER
+    # ==========================================
 
     await UIManager.update(
-
-        chat_id = chat_id,
-
-        text = captcha["question"],
-
-        reply_markup = captcha["keyboard"]
+        chat_id=chat_id,
+        text=captcha["question"],
+        reply_markup=captcha.get("keyboard"),
     )
 
-
 # ==============================================
-# 🚀 HANDLE CAPTCHA RESPONSE
+# ✅ HANDLE CAPTCHA RESPONSE
 # ==============================================
 
 async def handle_captcha(
-        
     *,
-
     chat_id: int,
-
-    text: str
+    text: str,
 ) -> bool:
+
+    # ==========================================
+    # 🚫 INVALID INPUT
+    # ==========================================
 
     if not text.isdigit():
 
         logger.warning(
-            
-            "User provided non-numeric captcha response",
-
+            "captcha_invalid_input",
             extra={
-
                 "chat_id": chat_id,
-
-                "text_length": len(text)
-            }
+            },
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "⚠️ الرجاء إدخال الرقم الصحيح فقط.",
-
-            reply_markup = None
+            chat_id=chat_id,
+            text="⚠️ الرجاء إدخال الرقم الصحيح فقط.",
+            reply_markup=None,
         )
 
         return False
 
+    # ==========================================
+    # 🔍 VERIFY ANSWER
+    # ==========================================
+
     valid = await CaptchaManager.verify(
-
-        chat_id = chat_id,
-
-        user_answer = text
+        chat_id=chat_id,
+        user_answer=text,
     )
+
+    # ==========================================
+    # 🚫 WRONG ANSWER
+    # ==========================================
 
     if not valid:
 
         logger.warning(
-
-            "User provided incorrect captcha response",
-            
+            "captcha_verification_failed",
             extra={
-
                 "chat_id": chat_id,
-
-                "text_length": len(text)
-            }
+            },
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ إجابة خاطئة.\nحاول مرة أخرى.",
-
-            reply_markup = None
+            chat_id=chat_id,
+            text="❌ إجابة خاطئة.\nحاول مرة أخرى.",
+            reply_markup=None,
         )
 
         return False
-    
-    await CaptchaManager.clear(
 
-        chat_id = chat_id
+    # ==========================================
+    # 🧹 CLEAR CAPTCHA
+    # ==========================================
+
+    await CaptchaManager.clear(
+        chat_id=chat_id,
     )
 
+    # ==========================================
+    # ✅ VERIFICATION SUCCESS
+    # ==========================================
+
     logger.info(
-
-        "User provided correct captcha response",
-
+        "captcha_verification_success",
         extra={
-
             "chat_id": chat_id,
-
-            "text_length": len(text)
-        }
+        },
     )
 
     await UIManager.update(
-
-        chat_id = chat_id,
-
-        text = "✅ تم التحقق بنجاح.",
-
-        reply_markup = None
+        chat_id=chat_id,
+        text="✅ تم التحقق بنجاح.",
+        reply_markup=None,
     )
 
-    logger.info(
-
-        "User completed captcha verification",
-
-        extra={
-            
-            "chat_id": chat_id
-        }
-    )
     return True

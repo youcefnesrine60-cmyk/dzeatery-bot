@@ -1,329 +1,220 @@
-#================================================
+# ==============================================
+# 💬 MESSAGE HANDLER
 # المسؤول عن:
-# /start
-# الرجوع
-# توجيه الرسائل حسب الـ state
-#=================================================
+# - /start
+# - الرجوع
+# - التحقق من CAPTCHA
+# - توجيه الرسائل حسب الـ State
+# ==============================================
 
-from app.services.telegram import (
-    delete_message
-)
+from app.core.logger import logger
+from app.core.state_dispatcher import StateDispatcher
 
-from app.helpers.ui_manager import (
-    UIManager
-)
+from app.core.security.captcha_manager import CaptchaManager
+
+from app.handlers.captcha_handler import handle_captcha
+
+from app.helpers.message import send_main_menu
+from app.helpers.navigation import go_back
+from app.helpers.ui_manager import UIManager
 
 from app.repositories.state_repo import (
+    delete_state,
     get_state,
-    delete_state
 )
 
-from app.helpers.navigation import (
-    go_back
-)
+from app.services.telegram import delete_message
 
-from app.helpers.message import (
-    send_main_menu
-)
+from app.states.owner_states import OwnerStates
 
-from app.views.ui import (
-    main_menu_ui
-)
-
-from app.views.texts import (
-    WELCOME_MESSAGE
-)
-
-from app.core.security.captcha_manager import (
-    CaptchaManager
-)
-
-from app.handlers.captcha_handler import (
-    handle_captcha
-)
-
-from app.states.owner_states import (
-    OwnerStates
-)
-
-from app.core.state_dispatcher import (
-    StateDispatcher
-)
-
-from app.core.logger import (
-    logger
-)
-
-# =====================================================
-# 💬 MESSAGE ROUTER
-# =====================================================
+# ==============================================
+# 💬 HANDLE MESSAGE
+# ==============================================
 
 async def handle_message(
-        
     *,
-    
-    data: dict
+    data: dict,
 ) -> None:
-    
+
+    # ==========================================
+    # 📥 EXTRACT MESSAGE
+    # ==========================================
+
     message = data["message"]
 
     chat_id = message["chat"]["id"]
 
-    text = message.get("text", "").strip()
+    message_id = message["message_id"]
 
-    # ==============================================
-    # CAPTCHA
-    # ==============================================
+    text = message.get(
+        "text",
+        "",
+    ).strip()
 
     logger.info(
-
-        "Received message",
-
+        "message_received",
         extra={
-
             "chat_id": chat_id,
-
-            "text_length": len(text)
-        }
+            "text_length": len(text),
+        },
     )
 
-    captcha_required = await CaptchaManager.is_required(
+    # ==========================================
+    # 🤖 CAPTCHA VERIFICATION
+    # ==========================================
 
-        chat_id = chat_id
-        
-    )
-
-    if captcha_required:
+    if await CaptchaManager.is_required(
+        chat_id=chat_id,
+    ):
 
         logger.info(
-
             "captcha_required",
-
             extra={
-
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         solved = await handle_captcha(
-
-            chat_id = chat_id,
-
-            text = text
+            chat_id=chat_id,
+            text=text,
         )
 
         if not solved:
-
-            logger.warning(
-
-                "captcha_failed",
-
-                extra={
-
-                    "chat_id": chat_id
-                }
-            )
-
             return
 
-    # =================================================
-    # 🚀 START
-    # =================================================
+    # ==========================================
+    # 🚀 START COMMAND
+    # ==========================================
 
     if text == "/start":
 
         logger.info(
-
             "start_command",
-
             extra={
-
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
-        await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = WELCOME_MESSAGE,
-
-            reply_markup = main_menu_ui()
+        await send_main_menu(
+            chat_id=chat_id,
         )
 
         return
 
-    # =================================================
+    # ==========================================
     # 🔙 BACK BUTTON
-    # =================================================
+    # ==========================================
 
     if text == "🔙 رجوع":
 
         logger.info(
-
-            "back_button_pressed",
-
+            "back_requested",
             extra={
-
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
-        previous = go_back(
-
-            chat_id = chat_id
-
+        previous = await go_back(
+            chat_id=chat_id,
         )
 
-        if not previous:
+        # ======================================
+        # 🏠 RETURN TO MAIN MENU
+        # ======================================
 
-            logger.info(
-
-                "back_button_pressed",
-
-                extra={
-
-                    "chat_id": chat_id
-                }
-            )
+        if previous is None:
 
             try:
 
-                delete_state(
-
-                    chat_id = chat_id
-                )
-
-                logger.info(
-
-                    "state_deleted_on_back",
-
-                    extra={
-
-                        "chat_id": chat_id
-                    }
+                await delete_state(
+                    chat_id=chat_id,
                 )
 
             except Exception as e:
 
                 logger.exception(
-
                     "state_cleanup_failed",
-
                     extra={
-
                         "chat_id": chat_id,
-
-                        "error": str(e)
-                    }
+                        "error": str(e),
+                    },
                 )
 
-            logger.info(
-
-                "no_previous_state",
-
-                extra={
-
-                    "chat_id": chat_id
-                }
-            )
-
             await send_main_menu(
-                
-                chat_id = chat_id
+                chat_id=chat_id,
             )
 
         return
 
-    # =================================================
-    # 🧠 USER STATE FLOW
-    # =================================================
+    # ==========================================
+    # 📥 LOAD USER STATE
+    # ==========================================
 
-    state = get_state(
-
-        chat_id = chat_id
-
+    state = await get_state(
+        chat_id=chat_id,
     )
+
+    # ==========================================
+    # 🚫 NO ACTIVE STATE
+    # ==========================================
 
     if not state:
 
         logger.info(
-
-            "no_state_message",
-
+            "state_not_found",
             extra={
-
                 "chat_id": chat_id,
-
-                "text_length": len(text)
-            }
+            },
         )
+
         return
 
-    # =============================================
-    # 🚫 PREVENT MANUAL TEXT IN BUTTON STEPS
-    # منع الكتابة أثناء مراحل الأزرار
-    # =============================================
+    # ==========================================
+    # 🚫 PREVENT MANUAL INPUT
+    # BUTTON ONLY STEPS
+    # ==========================================
 
-    if state.get("step") in [
-
+    if state.get("step") in (
         OwnerStates.TYPE,
+        OwnerStates.CONFIRM,
+    ):
 
-        OwnerStates.CONFIRM
-    ]:
         logger.warning(
-
             "manual_text_in_button_step",
-
             extra={
-
                 "chat_id": chat_id,
-
-                "step": state.get("step"),
-                
-                "text_length": len(text)
-            }
+                "step": state["step"],
+            },
         )
 
         await delete_message(
-
-            chat_id = chat_id,
-
-            message_id = message["message_id"]
-        )
-
-        logger.warning(
-
-            "manual_text_in_button_step",
-
-            extra={
-
-                "chat_id": chat_id
-            }
+            chat_id=chat_id,
+            message_id=message_id,
         )
 
         await UIManager.update(
-
-            chat_id = chat_id,
-
-            text = "❌ الرجاء استعمال الأزرار فقط.",
-
-            reply_markup = None,
-
-            message_id = message["message_id"]
+            chat_id=chat_id,
+            message_id=message_id,
+            text="❌ الرجاء استعمال الأزرار فقط.",
+            reply_markup=None,
         )
 
         return
-    
+
     # ==========================================
-    # DISPATCH TO STATE HANDLER
+    # 🚀 DISPATCH STATE
     # ==========================================
+
+    logger.info(
+        "state_dispatch_started",
+        extra={
+            "chat_id": chat_id,
+            "step": state.get("step"),
+        },
+    )
 
     await StateDispatcher.dispatch(
-
-        chat_id = chat_id,
-
-        text = text,
-
-        state = state
+        chat_id=chat_id,
+        text=text,
+        state=state,
     )
