@@ -32,13 +32,13 @@ class CaptchaManager:
             logger.warning("captcha_redis_unavailable")
             return
 
-        await redis_client.setex(
+        redis_client.setex(
             f"{cls.PREFIX}:{chat_id}",
             cls.TTL,
             "1",
         )
 
-        await redis_client.setex(
+        redis_client.setex(
             f"{cls.ANSWER_PREFIX}:{chat_id}",
             cls.TTL,
             str(answer),
@@ -67,7 +67,7 @@ class CaptchaManager:
             return False
 
         required = bool(
-            await redis_client.exists(
+            redis_client.exists(
                 f"{cls.PREFIX}:{chat_id}",
             )
         )
@@ -98,7 +98,7 @@ class CaptchaManager:
             logger.warning("captcha_redis_unavailable")
             return False
 
-        saved = await redis_client.get(
+        saved = redis_client.get(
             f"{cls.ANSWER_PREFIX}:{chat_id}",
         )
 
@@ -141,7 +141,7 @@ class CaptchaManager:
             logger.warning("captcha_redis_unavailable")
             return
 
-        await redis_client.delete(
+        redis_client.delete(
             f"{cls.PREFIX}:{chat_id}",
             f"{cls.ANSWER_PREFIX}:{chat_id}",
         )
