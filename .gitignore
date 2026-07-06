@@ -5,6 +5,7 @@
 .env
 .env.*
 *.env
+.env.example
 
 # ========================
 # 🐍 Python
@@ -12,6 +13,14 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 venv/
@@ -25,6 +34,11 @@ ENV/
 .coverage
 htmlcov/
 .pytest_cache/
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 
 # ========================
 # 🧠 IDE / Editor
@@ -33,6 +47,10 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+*.code-workspace
+*.iml
+*.ipr
+*.iws
 
 # ========================
 # 🐳 Docker
@@ -44,6 +62,8 @@ docker-compose.override.yml
 # ========================
 *.log
 logs/
+*.tmp
+*.temp
 
 # ========================
 # 🗃️ Database / Cache (local only)
@@ -51,6 +71,7 @@ logs/
 *.sqlite3
 *.db
 dump.rdb
+__pycache__/
 
 # ========================
 # 📦 Build / Dist
@@ -58,9 +79,26 @@ dump.rdb
 build/
 dist/
 *.egg-info/
+*.whl
+*.tar.gz
 
 # ========================
 # 🧾 OS files
 # ========================
 .DS_Store
 Thumbs.db
+*.tmp
+*.temp
+
+# ========================
+# 🔧 Development files
+# ========================
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# ========================
+# 🌐 Web files
+# ========================
+*.map.html
