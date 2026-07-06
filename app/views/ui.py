@@ -8,7 +8,7 @@ from app.core.logger import logger
 # 🌐 CONSTANTS
 # ==============================================
 
-MAP_URL = "https://dzeatery.onrender.com/map"
+MAP_URL = "https://youcefnesrine60-cmyk.github.io/dzeatery-map/map.html"
 
 # ==============================================
 # 🔘 BUTTON HELPER
