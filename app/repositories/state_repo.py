@@ -47,7 +47,7 @@ async def get_state(
             extra={"chat_id": chat_id},
         )
 
-        data = await redis_client.get(key)
+        data = redis_client.get(key)
 
         if not data:
 
@@ -111,7 +111,7 @@ async def set_state(
             extra={"chat_id": chat_id},
         )
 
-        await redis_client.set(
+        redis_client.set(
             key,
             json.dumps(state)
         )
@@ -161,7 +161,7 @@ async def delete_state(
             extra={"chat_id": chat_id},
         )
 
-        await redis_client.delete(key)
+        redis_client.delete(key)
 
         logger.info(
             "state_deleted_from_redis",

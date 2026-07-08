@@ -17,7 +17,7 @@ from app.core.logger import logger
 from app.views.ui import *
 
 # ==============================================
-# 👤 OWNER
+# 👤 OWNER CALLBACK
 # ==============================================
 
 async def owner_callback(
@@ -25,59 +25,57 @@ async def owner_callback(
     chat_id: int,
     message_id: int,
     callback_data: str,
-    match: re.Match
+    match: re.Match,
 ) -> None:
+    """
+    معالجة اختيار "صاحب محل" من القائمة الرئيسية
+    """
+    logger.info(
+        "owner_callback_triggered",
+        extra={
+            "chat_id": chat_id,
+        },
+    )
 
-    if not await has_consent(
-        chat_id = chat_id
-    ):
-
+    # التحقق من الموافقة على الشروط
+    if not await has_consent(chat_id=chat_id):
         logger.info(
             "owner_no_consent",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         await UIManager.update(
-            chat_id = chat_id,
-            text = await consent_text(),
-            reply_markup = await consent_ui(
-                role = "owner"
-            ),
-            message_id = message_id
+            chat_id=chat_id,
+            text=await consent_text(),
+            reply_markup=await consent_ui(role="owner"),
+            message_id=message_id,
         )
         return
-            
-    logger.info(    
-        "owner_callback_triggered",
-        extra={
-            "chat_id": chat_id
-        }
-    )
 
+    # بدء تدفق المالك
     await set_state(
-        chat_id = chat_id, 
-        state = {
+        chat_id=chat_id,
+        state={
             "flow": "owner",
             "step": OwnerStates.NAME,
-            "history": []
-        }
+            "history": [],
+        },
     )
 
     logger.info(
         "owner_flow_started",
         extra={
-            "chat_id": chat_id
-
-        }
+            "chat_id": chat_id,
+        },
     )
 
     await UIManager.update(
-        chat_id = chat_id,
-        text = OWNER_NAME,
-        reply_markup = await back_ui(),
-        message_id = message_id
+        chat_id=chat_id,
+        text=OWNER_NAME,
+        reply_markup=await back_ui(),
+        message_id=message_id,
     )
 
 

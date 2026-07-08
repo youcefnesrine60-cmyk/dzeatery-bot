@@ -6,8 +6,9 @@ from app.core.logger import logger
 from app.helpers.ui_manager import UIManager
 
 from app.views.texts import (
+    OWNER_NAME,
     RESTAU_NAME,
-    WELCOME_MSG,
+    WELCOME_MESSAGE,
     WILAYA_NAME,
 )
 
@@ -58,7 +59,7 @@ async def send_main_menu(
 
     await send_screen(
         chat_id=chat_id,
-        text=WELCOME_MSG,
+        text=WELCOME_MESSAGE,
         reply_markup=await main_menu_ui(),
         screen_name="main_menu",
         message_id=message_id,
@@ -74,6 +75,14 @@ async def send_restaurant_name(
     chat_id: int,
     message_id: int | None = None,
 ) -> None:
+    
+    await send_screen(
+        chat_id=chat_id,
+        text=OWNER_NAME,
+        reply_markup=dict(),
+        screen_name="owner name",
+        message_id=3,
+    )
 
     await send_screen(
         chat_id=chat_id,

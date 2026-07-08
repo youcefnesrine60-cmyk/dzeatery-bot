@@ -60,11 +60,19 @@ class CallbackRouter:
 
     async def dispatch(
         self,
+        *,
         callback_data: str,
-        *args: Any,
-        **kwargs: Any,
+        chat_id: int,
+        message_id: int,
     ) -> Any:
-
+        """
+        توزيع الكولباك إلى المعالج المناسب
+        
+        Args:
+            callback_data: بيانات الكولباك من Telegram
+            chat_id: معرف المستخدم
+            message_id: معرف الرسالة
+        """
         # ======================================
         # 🔍 SEARCH MATCHING ROUTE
         # ======================================
@@ -86,11 +94,12 @@ class CallbackRouter:
                 },
             )
 
+            # ✅ تمرير المعاملات بشكل صحيح (جميعها مسماه)
             return await handler(
-                *args,
+                chat_id=chat_id,
+                message_id=message_id,
                 callback_data=callback_data,
                 match=match,
-                **kwargs,
             )
 
         # ======================================

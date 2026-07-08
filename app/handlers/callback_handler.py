@@ -46,10 +46,11 @@ async def handle_callback(
     # 🚀 DISPATCH CALLBACK
     # ==========================================
 
+    # ✅ استدعاء dispatch مع المعاملات المسماه
     await router.dispatch(
-        callback_data,
-        chat_id,
-        message_id,
+        callback_data=callback_data,
+        chat_id=chat_id,
+        message_id=message_id,
     )
 
     logger.info(
