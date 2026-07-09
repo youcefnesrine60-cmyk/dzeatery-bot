@@ -78,7 +78,7 @@ async def send_restaurant_name(
     
     await send_screen(
         chat_id=chat_id,
-        text=OWNER_NAME,
+        text=OWNER_NAME + "\n ✅ تم حفظ الاسم.\nالرجاء متابعة التسجيل.",
         reply_markup=dict(),
         screen_name="owner name",
         message_id=3,
@@ -87,9 +87,9 @@ async def send_restaurant_name(
     await send_screen(
         chat_id=chat_id,
         text=RESTAU_NAME,
-        reply_markup=await back_ui(),
+        reply_markup=dict(),#await back_ui(),
         screen_name="restaurant",
-        message_id=message_id,
+        message_id=None,
     )
 
 

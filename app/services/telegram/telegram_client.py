@@ -44,16 +44,15 @@ async def send_message(
     # 🎛️ REPLY MARKUP
     # ========================================
 
-    if reply_markup is not None:
-
-        logger.debug(
+    #if reply_markup is not None:
+    logger.debug(
             "sending_message_with_reply_markup",
             extra={
                 "chat_id": chat_id
             }
         )
 
-        data["reply_markup"] = reply_markup
+    data["reply_markup"] = reply_markup
 
     logger.debug(
         "send_message_payload_prepared",
@@ -100,17 +99,17 @@ async def edit_message(
     # 🎛️ REPLY MARKUP
     # ========================================
 
-    if reply_markup is not None:
+    #if reply_markup is not None:
 
-        logger.debug(
-            "editing_message_with_reply_markup",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id
-            }
-        )
+    logger.debug(
+        "editing_message_with_reply_markup",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id
+        }
+    )
 
-        data["reply_markup"] = reply_markup
+    data["reply_markup"] = reply_markup
 
     logger.debug(
         "edit_message_payload_prepared",
