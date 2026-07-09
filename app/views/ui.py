@@ -42,22 +42,23 @@ async def main_menu_ui() -> dict:
         "display_main_menu"
     )
 
-    return {
-        "inline_keyboard": [
-            [
-                await button(
-                    text = "🍽️ زبون مطعم",
-                    callback = "customer"
-                )
-            ],
-
-            [
-                await button(
-                    text = "🏪 صاحب محل",
-                    callback = "owner"
-                )
-            ]
+    buttons = [
+        [
+            await button(
+                text="🍽️ زبون مطعم",
+                callback="customer"
+            )
+        ],
+        [
+            await button(
+                text="🏪 صاحب محل",
+                callback="owner"
+            )
         ]
+    ]
+
+    return {
+        "inline_keyboard": buttons
     }
 
 # ==============================================

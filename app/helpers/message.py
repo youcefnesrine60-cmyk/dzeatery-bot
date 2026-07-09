@@ -39,14 +39,18 @@ async def send_screen(
         },
     )
 
-    # ✅ تأكد من أن reply_markup هو dict وليس coroutine
-    final_reply_markup = None
-    if reply_markup is not None:
-        # ✅ إذا كان reply_markup هو coroutine، نستخدم await
-        if hasattr(reply_markup, "__await__"):
-            final_reply_markup = await reply_markup
-        else:
-            final_reply_markup = reply_markup
+    # ✅ تأكد من أن reply_markup هو dict
+    final_reply_markup = reply_markup
+    if final_reply_markup is not None and not isinstance(final_reply_markup, dict):
+        logger.error(
+            "invalid_reply_markup",
+            extra={
+                "chat_id": chat_id,
+                "screen": screen_name,
+                "type": type(final_reply_markup).__name__,
+            },
+        )
+        final_reply_markup = None
 
     await UIManager.update(
         chat_id=chat_id,
@@ -54,7 +58,6 @@ async def send_screen(
         reply_markup=final_reply_markup,
         message_id=message_id,
     )
-
 
 # ==============================================
 # 🏠 MAIN MENU
