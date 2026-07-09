@@ -84,13 +84,13 @@ async def send_restaurant_name(
         message_id=3,
     )
 
-    await send_screen(
+    '''await send_screen(
         chat_id=chat_id,
         text=RESTAU_NAME,
         reply_markup=dict(),#await back_ui(),
         screen_name="restaurant",
         message_id=None,
-    )
+    )'''
 
 
 # ==============================================
