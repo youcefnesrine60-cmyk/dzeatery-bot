@@ -6,6 +6,11 @@ from app.core.logger import logger
 from app.services.telegram.base import _post
 from app.services.telegram.constants import PARSE_MODE
 
+from app.views.ui import (
+    back_ui,
+    main_menu_ui,
+)
+
 
 # ============================================
 # 🧩 TYPES
@@ -52,7 +57,7 @@ async def send_message(
             }
         )
 
-    data["reply_markup"] = reply_markup
+    data["reply_markup"] = await back_ui(),
 
     logger.debug(
         "send_message_payload_prepared",
