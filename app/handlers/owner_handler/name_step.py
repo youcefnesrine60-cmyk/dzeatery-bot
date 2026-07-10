@@ -35,6 +35,7 @@ async def handle_name_step(
 
     # ==========================================
     # 🧼 SANITIZE INPUT
+    # ... التحقق من صحة الاسم ...
     # ==========================================
 
     clean = safe_sanitize(
@@ -42,6 +43,23 @@ async def handle_name_step(
         text=text,
         field="owner",
     )
+
+    # ==========================================
+    # ✅ استخدام bot_message_id المحفوظ في الحالة
+    # ==========================================
+
+    bot_message_id = state.get("bot_message_id")
+
+    if bot_message_id is None:
+        # إذا لم يكن موجوداً، نستخدم message_id الخاص بالمستخدم (كحل احتياطي)
+        bot_message_id = message_id
+        logger.warning(
+            "bot_message_id_not_found_using_user_message_id",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
 
     # ==========================================
     # 🚫 INVALID INPUT
@@ -65,13 +83,13 @@ async def handle_name_step(
         return
 
     # ==========================================
-    # 💾 SAVE STATE
+    # 💾 SAVE STATE ( # ... حفظ البيانات  ...)
     # ==========================================
 
     state["owner"] = clean
 
     # ==========================================
-    # 🔄 TRANSITION
+    # 🔄 TRANSITION (الانتقال)
     # ==========================================
 
     if not await transition_to(
@@ -93,5 +111,5 @@ async def handle_name_step(
 
     await send_restaurant_name(
         chat_id=chat_id,
-        message_id=message_id
+        message_id=bot_message_id,  # ✅ نمرر message_id الخاص بالبوت
     )

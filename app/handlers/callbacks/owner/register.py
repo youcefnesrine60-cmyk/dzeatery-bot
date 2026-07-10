@@ -1,20 +1,38 @@
 # ==============================================
-# 🏪 OWNER (صاحب المحل)
-# owner_callback - consent_callback
-# This file contains the callbacks related to 
-# the owner registration process.
+# 🏪 OWNER CALLBACKS
+# Owner Registration & Consent Flow
 # ==============================================
+
 import re
 
-from app.repositories.user_repo import has_consent
-from app.helpers.ui_manager import UIManager
-from app.repositories.state_repo import set_state
-from app.repositories.user_repo import give_consent
-from app.states.owner_states import OwnerStates
-from app.views.texts import OWNER_NAME
-from app.handlers.callbacks.customer.restaurant_list import show_restaurants
 from app.core.logger import logger
-from app.views.ui import *
+
+from app.helpers.ui_manager import UIManager
+
+from app.repositories.state_repo import (
+    set_state,
+)
+
+from app.repositories.user_repo import (
+    give_consent,
+    has_consent,
+)
+
+from app.states.owner_states import OwnerStates
+
+from app.handlers.callbacks.customer.restaurant_list import (
+    show_restaurants,
+)
+
+from app.views.texts import (
+    OWNER_NAME,
+)
+
+from app.views.ui import (
+    back_ui,
+    consent_text,
+    consent_ui,
+)
 
 # ==============================================
 # 👤 OWNER CALLBACK
@@ -25,22 +43,26 @@ async def owner_callback(
     chat_id: int,
     message_id: int,
     callback_data: str,
-    match: re.Match,
+    match: re.Match[str],
 ) -> None:
-    """
-    معالجة اختيار "صاحب محل" من القائمة الرئيسية
-    """
+
     logger.info(
-        "owner_callback_triggered",
+        "owner_callback",
         extra={
             "chat_id": chat_id,
         },
     )
 
-    # التحقق من الموافقة على الشروط
-    if not await has_consent(chat_id=chat_id):
+    # ==========================================
+    # 🚫 CONSENT REQUIRED
+    # ==========================================
+
+    if not await has_consent(
+        chat_id=chat_id,
+    ):
+
         logger.info(
-            "owner_no_consent",
+            "owner_consent_required",
             extra={
                 "chat_id": chat_id,
             },
@@ -49,18 +71,25 @@ async def owner_callback(
         await UIManager.update(
             chat_id=chat_id,
             text=await consent_text(),
-            reply_markup=await consent_ui(role="owner"),
+            reply_markup=await consent_ui(
+                role="owner",
+            ),
             message_id=message_id,
         )
+
         return
 
-    # بدء تدفق المالك
+    # ==========================================
+    # 🚀 START OWNER FLOW
+    # ==========================================
+
     await set_state(
         chat_id=chat_id,
         state={
             "flow": "owner",
             "step": OwnerStates.NAME,
             "history": [],
+            "bot_message_id": message_id,
         },
     )
 
@@ -78,9 +107,8 @@ async def owner_callback(
         message_id=message_id,
     )
 
-
 # ==============================================
-# ✅ CONSENT
+# ✅ CONSENT CALLBACK
 # ==============================================
 
 async def consent_callback(
@@ -88,54 +116,68 @@ async def consent_callback(
     chat_id: int,
     message_id: int,
     callback_data: str,
-    match: re.Match
+    match: re.Match[str],
 ) -> None:
 
+    # ==========================================
+    # ✅ SAVE USER CONSENT
+    # ==========================================
+
     await give_consent(
-        chat_id = chat_id)
+        chat_id=chat_id,
+    )
+
+    # ==========================================
+    # 👤 OWNER FLOW
+    # ==========================================
 
     if callback_data.endswith("owner"):
 
         logger.info(
-            "owner_given_consent",
-             extra={
-                "chat_id": chat_id
-            }
+            "owner_consent_accepted",
+            extra={
+                "chat_id": chat_id,
+            },
         )
 
         await set_state(
-            chat_id = chat_id, 
-            state = {
+            chat_id=chat_id,
+            state={
                 "flow": "owner",
                 "step": OwnerStates.NAME,
-                "history": []
-            }
+                "history": [],
+                "bot_message_id": message_id,
+            },
         )
 
         logger.info(
-            "owner_flow_started_after_consent",
+            "owner_flow_started",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         await UIManager.update(
-            chat_id = chat_id,
-            text = OWNER_NAME,
-            reply_markup = await back_ui(),
-            message_id = message_id
+            chat_id=chat_id,
+            text=OWNER_NAME,
+            reply_markup=await back_ui(),
+            message_id=message_id,
         )
 
-    else:
+        return
 
-        logger.info(
-            "customer_given_consent",
-            extra={
-                "chat_id": chat_id
-            }
-        )
+    # ==========================================
+    # 🍽️ CUSTOMER FLOW
+    # ==========================================
 
-        await show_restaurants(
-            chat_id = chat_id,
-            message_id = message_id
-        )
+    logger.info(
+        "customer_consent_accepted",
+        extra={
+            "chat_id": chat_id,
+        },
+    )
+
+    await show_restaurants(
+        chat_id=chat_id,
+        message_id=message_id,
+    )
