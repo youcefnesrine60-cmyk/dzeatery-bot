@@ -30,7 +30,7 @@ async def handle_name_step(
     chat_id: int,
     text: str,
     state: StateData,
-    message_id: int | None = None,
+    message_id: int,
 ) -> None:
 
     # ==========================================
