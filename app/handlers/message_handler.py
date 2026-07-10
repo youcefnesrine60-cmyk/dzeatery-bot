@@ -217,4 +217,5 @@ async def handle_message(
         chat_id=chat_id,
         text=text,
         state=state,
+        message_id=message_id,
     )
