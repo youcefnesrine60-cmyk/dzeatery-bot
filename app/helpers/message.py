@@ -99,7 +99,7 @@ async def send_restaurant_name(
         
         await send_screen(
             chat_id=chat_id,
-            text=RESTAU_NAME,
+            text=RESTAU_NAME +  "\n ✅ message_id : " + str(message_id),
             reply_markup=await back_ui(),
             screen_name="restaurant",
             message_id=message_id,
