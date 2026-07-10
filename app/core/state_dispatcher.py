@@ -15,6 +15,7 @@ class StateDispatcher:
         chat_id: int,
         text: str,
         state: dict,
+         message_id: int, 
     ) -> None:
         """
         توزيع الحالة إلى المعالج المناسب
@@ -23,6 +24,7 @@ class StateDispatcher:
             chat_id: معرف المستخدم
             text: النص المرسل
             state: حالة المستخدم الحالية
+            message_id: معرف الرسالة (للتحديث)
         """
         flow = state.get("flow")
 
@@ -35,6 +37,7 @@ class StateDispatcher:
                 chat_id=chat_id,
                 text=text,
                 state=state,
+                message_id=message_id,
             )
 
         # ==========================================
@@ -46,6 +49,7 @@ class StateDispatcher:
                 chat_id=chat_id,
                 text=text,
                 state=state,
+                message_id=message_id,
             )
 
         # ==========================================
