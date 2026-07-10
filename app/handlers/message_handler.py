@@ -194,9 +194,9 @@ async def handle_message(
 
         await UIManager.update(
             chat_id=chat_id,
-            message_id=message_id,
             text="❌ الرجاء استعمال الأزرار فقط.",
             reply_markup=None,
+            message_id=message_id,
         )
 
         return

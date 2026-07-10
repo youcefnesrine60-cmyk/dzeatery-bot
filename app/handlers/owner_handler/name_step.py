@@ -30,6 +30,7 @@ async def handle_name_step(
     chat_id: int,
     text: str,
     state: StateData,
+    message_id: int | None = None,
 ) -> None:
 
     # ==========================================
@@ -85,11 +86,17 @@ async def handle_name_step(
             },
         )
         return
-
+    
     # ==========================================
     # 🍽️ REQUEST RESTAURANT NAME
     # ==========================================
 
     await send_restaurant_name(
         chat_id=chat_id,
+        message_id=message_id
+    )
+
+    await send_restaurant_name(
+        chat_id=chat_id,
+        message_id=None
     )

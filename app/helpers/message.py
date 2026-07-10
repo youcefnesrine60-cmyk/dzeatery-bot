@@ -18,6 +18,12 @@ from app.views.ui import (
 )
 
 # ==============================================
+# 🏷️ TYPES
+# ==============================================
+
+ReplyMarkup = dict[str, object]
+
+# ==============================================
 # 📤 SEND SCREEN
 # ==============================================
 
@@ -25,46 +31,15 @@ async def send_screen(
     *,
     chat_id: int,
     text: str,
-    reply_markup: dict | None = None,
     screen_name: str,
+    reply_markup: ReplyMarkup | None = None,
     message_id: int | None = None,
 ) -> None:
-
-    logger.info(
-        "screen_sent",
-        extra={
-            "chat_id": chat_id,
-            "screen": screen_name,
-            "message_id": message_id,
-        },
-    )
-
-    # ✅ تأكد من أن reply_markup هو dict وليس coroutine أو None
-    final_reply_markup = None
-    
-    if reply_markup is not None:
-        # ✅ إذا كان reply_markup هو coroutine (دالة غير متزامنة)، استخدم await
-        if hasattr(reply_markup, "__await__"):
-            final_reply_markup = await reply_markup
-        else:
-            final_reply_markup = reply_markup
-
-    # ✅ تأكد من أن final_reply_markup هو dict بالشكل الصحيح
-    if final_reply_markup is not None and not isinstance(final_reply_markup, dict):
-        logger.error(
-            "invalid_reply_markup_type",
-            extra={
-                "chat_id": chat_id,
-                "screen": screen_name,
-                "type": type(final_reply_markup).__name__,
-            },
-        )
-        final_reply_markup = None
 
     await UIManager.update(
         chat_id=chat_id,
         text=text,
-        reply_markup=final_reply_markup,
+        reply_markup=reply_markup,
         message_id=message_id,
     )
 
@@ -77,17 +52,21 @@ async def send_main_menu(
     chat_id: int,
     message_id: int | None = None,
 ) -> None:
-    
-    menu_ui = await main_menu_ui()
+
+    logger.info(
+        "main_menu_screen",
+        extra={
+            "chat_id": chat_id,
+        },
+    )
 
     await send_screen(
         chat_id=chat_id,
         text=WELCOME_MESSAGE,
-        reply_markup=menu_ui,
+        reply_markup=await main_menu_ui(),
         screen_name="main_menu",
         message_id=message_id,
     )
-
 
 # ==============================================
 # 🍽️ RESTAURANT NAME
@@ -98,23 +77,33 @@ async def send_restaurant_name(
     chat_id: int,
     message_id: int | None = None,
 ) -> None:
-    
-    await send_screen(
-        chat_id=chat_id,
-        text=OWNER_NAME + "\n ✅ تم حفظ الاسم.\nالرجاء متابعة التسجيل.",
-        reply_markup=dict(),
-        screen_name="owner name",
-        message_id=message_id,
+
+    logger.info(
+        "restaurant_name_screen",
+        extra={
+            "chat_id": chat_id,
+        },
     )
 
-    '''await send_screen(
-        chat_id=chat_id,
-        text=RESTAU_NAME,
-        reply_markup=dict(),#await back_ui(),
-        screen_name="restaurant",
-        message_id=None,
-    )'''
+    if message_id is not None:
 
+        await send_screen(
+            chat_id=chat_id,
+            text=OWNER_NAME + "\n ✅ تم حفظ الاسم.\nالرجاء متابعة التسجيل.",
+            reply_markup=None,
+            screen_name="owner name",
+            message_id=message_id,
+        )
+
+    else:
+        
+        await send_screen(
+            chat_id=chat_id,
+            text=RESTAU_NAME,
+            reply_markup=await back_ui(),
+            screen_name="restaurant",
+            message_id=message_id,
+        )
 
 # ==============================================
 # 🗺️ WILAYA NAME
@@ -125,6 +114,13 @@ async def send_wilaya_name(
     chat_id: int,
     message_id: int | None = None,
 ) -> None:
+
+    logger.info(
+        "wilaya_screen",
+        extra={
+            "chat_id": chat_id,
+        },
+    )
 
     await send_screen(
         chat_id=chat_id,

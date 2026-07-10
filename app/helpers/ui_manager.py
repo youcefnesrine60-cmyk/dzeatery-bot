@@ -1,66 +1,114 @@
-from app.services.telegram import (
-    send_message,
-    edit_message
-)
+# ==============================================
+# 🎨 UI MANAGER
+# ==============================================
+
+from collections.abc import Awaitable
 
 from app.core.logger import logger
 
-# ==========================================
-# 🧩 TYPES
-# ==========================================
+from app.services.telegram import (
+    edit_message,
+    send_message,
+)
 
-TelegramResponse = dict | None
-ReplyMarkup = dict | None
+# ==============================================
+# 🏷️ TYPES
+# ==============================================
 
-# ==========================================
+TelegramResponse = dict[str, object] | None
+ReplyMarkup = dict[str, object] | None
+ReplyMarkupInput = ReplyMarkup | Awaitable[ReplyMarkup]
+
+# ==============================================
 # 🎨 UI MANAGER
-# ==========================================
+# ==============================================
 
 class UIManager:
+
+    # ==========================================
+    # 📤 SEND OR EDIT MESSAGE
+    # ==========================================
 
     @staticmethod
     async def update(
         *,
         chat_id: int,
         text: str,
-        reply_markup: dict | None = None,
-        message_id: int | None = None
+        reply_markup: ReplyMarkupInput = None,
+        message_id: int | None = None,
     ) -> TelegramResponse:
 
-        # ==================================
+        # ======================================
+        # 🔍 RESOLVE REPLY MARKUP
+        # ======================================
+
+        final_reply_markup: ReplyMarkup = None
+
+        if reply_markup is not None:
+
+            if isinstance(reply_markup, Awaitable):
+
+                final_reply_markup = await reply_markup
+
+            else:
+
+                final_reply_markup = reply_markup
+
+            # ==================================
+            # 🚫 INVALID REPLY MARKUP
+            # ==================================
+
+            if (
+                final_reply_markup is not None
+                and not isinstance(final_reply_markup, dict)
+            ):
+
+                logger.error(
+                    "invalid_reply_markup",
+                    extra={
+                        "chat_id": chat_id,
+                        "reply_markup_type": type(
+                            final_reply_markup
+                        ).__name__,
+                    },
+                )
+
+                final_reply_markup = None
+
+        # ======================================
         # ✏️ EDIT EXISTING MESSAGE
-        # ==================================
+        # ======================================
 
         if message_id is not None:
 
             logger.info(
-                "editing_existing_message",
+                "message_edited",
                 extra={
                     "chat_id": chat_id,
-                    "message_id": message_id
-                }
+                    "message_id": message_id,
+                },
             )
 
             return await edit_message(
                 chat_id=chat_id,
                 message_id=message_id,
                 text=text,
-                reply_markup=reply_markup
+                reply_markup=final_reply_markup,
             )
 
-        # ==================================
+        # ======================================
         # 💬 SEND NEW MESSAGE
-        # ==================================
+        # ======================================
 
         logger.info(
-            "sending_new_message",
+            "message_sent",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
 
         return await send_message(
             chat_id=chat_id,
             text=text,
-            reply_markup=reply_markup
+            reply_markup=final_reply_markup,
         )
