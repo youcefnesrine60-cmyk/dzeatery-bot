@@ -85,25 +85,14 @@ async def send_restaurant_name(
         },
     )
 
-    if message_id is not None:
-
-        await send_screen(
-            chat_id=chat_id,
-            text=OWNER_NAME + "\n ✅ تم حفظ الاسم.\nالرجاء متابعة التسجيل.",
-            reply_markup=None,
-            screen_name="owner name",
-            message_id=message_id,
-        )
-
-    else:
+    await send_screen(
+        chat_id=chat_id,
+        text=RESTAU_NAME +  "\n ✅ message_id : " + str(message_id),
+        reply_markup=await back_ui(),
+        screen_name="restaurant",
+        message_id=message_id,
+    )
         
-        await send_screen(
-            chat_id=chat_id,
-            text=RESTAU_NAME +  "\n ✅ message_id : " + str(message_id),
-            reply_markup=await back_ui(),
-            screen_name="restaurant",
-            message_id=message_id,
-        )
 
 # ==============================================
 # 🗺️ WILAYA NAME
