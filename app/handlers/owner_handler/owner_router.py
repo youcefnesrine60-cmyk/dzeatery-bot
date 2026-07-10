@@ -47,6 +47,7 @@ async def handle_owner_state(
     chat_id: int,
     text: str,
     state: StateData,
+    message_id: int,
 ) -> None:
 
     # ==========================================
@@ -85,4 +86,5 @@ async def handle_owner_state(
         chat_id=chat_id,
         text=text,
         state=state,
+        message_id=message_id,
     )
