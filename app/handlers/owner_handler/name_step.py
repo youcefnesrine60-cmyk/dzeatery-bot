@@ -95,8 +95,3 @@ async def handle_name_step(
         chat_id=chat_id,
         message_id=message_id
     )
-
-    await send_restaurant_name(
-        chat_id=chat_id,
-        message_id=None
-    )
