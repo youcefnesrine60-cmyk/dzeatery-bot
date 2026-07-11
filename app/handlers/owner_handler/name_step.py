@@ -124,7 +124,7 @@ async def handle_name_step(
         await set_state(
             chat_id=chat_id,
             state={
-                "flow": "restaurant",
+                "flow": "owner",
                 "step": OwnerStates.RESTAURANT,
                 "history": [],
                 "restaurant_message_id": restau_message_id,

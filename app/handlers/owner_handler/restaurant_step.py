@@ -122,7 +122,7 @@ async def handle_restaurant_step(
         await set_state(
             chat_id=chat_id,
             state={
-                "flow": "wilaya",
+                "flow": "owner",
                 "step": OwnerStates.WILAYA,
                 "history": [],
                 "wilaya_message_id": wilaya_message_id,
