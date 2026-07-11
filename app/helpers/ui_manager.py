@@ -107,8 +107,10 @@ class UIManager:
             },
         )
 
-        return await send_message(
+        response = await send_message(
             chat_id=chat_id,
             text=text,
             reply_markup=final_reply_markup,
         )
+
+        return response  # ✅ يحتوي على message_id

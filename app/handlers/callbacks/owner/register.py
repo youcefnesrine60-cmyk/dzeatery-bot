@@ -89,7 +89,7 @@ async def owner_callback(
             "flow": "owner",
             "step": OwnerStates.NAME,
             "history": [],
-            "bot_message_id": message_id,
+            "owner_name_message_id": message_id,
         },
     )
 
@@ -146,7 +146,7 @@ async def consent_callback(
                 "flow": "owner",
                 "step": OwnerStates.NAME,
                 "history": [],
-                "bot_message_id": message_id,
+                "owner_name_message_id": message_id,
             },
         )
 

@@ -11,6 +11,8 @@ from app.helpers.safe_sanitize import safe_sanitize
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 
+from app.repositories.state_repo import set_state
+
 from app.states.owner_states import OwnerStates
 
 from app.views.ui import back_ui
@@ -45,16 +47,17 @@ async def handle_name_step(
     )
 
     # ==========================================
-    # ✅ استخدام bot_message_id المحفوظ في الحالة
+    # ✅ استخدام owner_name_message_id 
+    # المحفوظ في الحالة
     # ==========================================
 
-    bot_message_id = state.get("bot_message_id")
+    owner_name_message_id = state.get("owner_name_message_id")
 
-    if bot_message_id is None:
+    if owner_name_message_id is None:
         # إذا لم يكن موجوداً، نستخدم message_id الخاص بالمستخدم (كحل احتياطي)
-        bot_message_id = message_id
+        owner_name_message_id = message_id
         logger.warning(
-            "bot_message_id_not_found_using_user_message_id",
+            "owner_name_message_id_not_found_using_user_message_id",
             extra={
                 "chat_id": chat_id,
                 "message_id": message_id,
@@ -109,7 +112,21 @@ async def handle_name_step(
     # 🍽️ REQUEST RESTAURANT NAME
     # ==========================================
 
-    await send_restaurant_name(
+    # ✅ الحصول على message_id الجديد
+    restau_message_id = await send_restaurant_name(
         chat_id=chat_id,
-        message_id=bot_message_id,  # ✅ نمرر message_id الخاص بالبوت
+        message_id=owner_name_message_id,
     )
+
+    # ✅ حفظ message_id الجديد في الحالة (للاستخدام المستقبلي)
+    if restau_message_id:
+        state["restaurant_message_id"] = restau_message_id
+        await set_state(
+            chat_id=chat_id,
+            state={
+                "flow": "restaurant",
+                "step": OwnerStates.RESTAURANT,
+                "history": [],
+                "restaurant_message_id": restau_message_id,
+            },
+        )

@@ -34,14 +34,18 @@ async def send_screen(
     screen_name: str,
     reply_markup: ReplyMarkup | None = None,
     message_id: int | None = None,
-) -> None:
+) -> dict | None:
+    """
+    إرسال أو تحديث رسالة، وإرجاع الرد من Telegram
+    """
 
-    await UIManager.update(
+    return await UIManager.update(
         chat_id=chat_id,
         text=text,
         reply_markup=reply_markup,
         message_id=message_id,
     )
+
 
 # ==============================================
 # 🏠 MAIN MENU
@@ -68,6 +72,7 @@ async def send_main_menu(
         message_id=message_id,
     )
 
+
 # ==============================================
 # 🍽️ RESTAURANT NAME
 # ==============================================
@@ -75,8 +80,11 @@ async def send_main_menu(
 async def send_restaurant_name(
     *,
     chat_id: int,
-    message_id: int | None = None,
-) -> None:
+    message_id: int | None = None, # message_id الخاص بالرسالة الحالية (التي نريد تحديثها)
+) -> int | None:
+    """
+    إرسال رسالة "أدخل اسم المحل" وإرجاع message_id الخاص بها
+    """
 
     logger.info(
         "restaurant_name_screen",
@@ -85,20 +93,38 @@ async def send_restaurant_name(
         },
     )
 
+    # 1️⃣ تحديث الرسالة الحالية (إزالة زر الرجوع)
     await send_screen(
         chat_id=chat_id,
-        text=OWNER_NAME + "\n ✅ تم حفظ الاسم.\nالرجاء متابعة التسجيل.",
+        text=OWNER_NAME + "\n ✅ تم حفظ الاسم.",
         reply_markup=None,
         screen_name="owner name",
         message_id=message_id,
     )
 
-    await send_screen(
+    # 2️⃣ إرسال رسالة جديدة (إدخال اسم المحل)
+    response = await send_screen(
         chat_id=chat_id,
-        text=RESTAU_NAME +  "\n ✅ message_id : " + str(message_id),
+        text=RESTAU_NAME,
         reply_markup=await back_ui(),
         screen_name="restaurant",
     )
+
+    # ✅ استخراج message_id من الرد
+    restau_message_id = None
+    if response and isinstance(response, dict):
+        restau_message_id = response.get("result", {}).get("message_id")
+
+    if restau_message_id:
+        logger.info(
+            "new_message_sent",
+            extra={
+                "chat_id": chat_id,
+                "restau_message_id": restau_message_id,
+            },
+        )
+
+    return restau_message_id
         
 
 # ==============================================
@@ -109,7 +135,7 @@ async def send_wilaya_name(
     *,
     chat_id: int,
     message_id: int | None = None,
-) -> None:
+) -> int | None:
 
     logger.info(
         "wilaya_screen",
@@ -120,8 +146,31 @@ async def send_wilaya_name(
 
     await send_screen(
         chat_id=chat_id,
+        text=RESTAU_NAME + "\n ✅ تم حفظ اسم المحل.",
+        reply_markup=None,
+        screen_name="restaurant",
+        message_id=message_id,
+    )
+
+    response = await send_screen(
+        chat_id=chat_id,
         text=WILAYA_NAME,
         reply_markup=await back_ui(),
         screen_name="wilaya",
-        message_id=message_id,
     )
+
+    # ✅ استخراج message_id من الرد
+    wilaya_message_id = None
+    if response and isinstance(response, dict):
+        wilaya_message_id = response.get("result", {}).get("message_id")
+
+    if wilaya_message_id:
+        logger.info(
+            "new_message_sent",
+            extra={
+                "chat_id": chat_id,
+                "wilaya_message_id": wilaya_message_id,
+            },
+        )
+
+    return wilaya_message_id
