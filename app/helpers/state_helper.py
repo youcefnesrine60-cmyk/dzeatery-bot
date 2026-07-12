@@ -30,7 +30,9 @@ async def get_user_state(
     """
     جلب حالة المستخدم
     """
-    return await get_state(chat_id=chat_id)
+    return await get_state(
+        chat_id=chat_id
+    )
 
 
 # ==============================================
@@ -96,6 +98,7 @@ async def append_to_state_list(
     إضافة عنصر إلى قائمة في الحالة (مع منع التكرار)
     """
     try:
+        # ✅ جلب الحالة الحالية
         state = await get_state(
             chat_id=chat_id
         )
@@ -103,6 +106,7 @@ async def append_to_state_list(
         if state is None:
             state = {}
 
+        # ✅ التأكد من وجود القائمة
         if list_key not in state:
             state[list_key] = []
 
@@ -110,6 +114,7 @@ async def append_to_state_list(
         if value not in state[list_key]:
             state[list_key].append(value)
 
+            # ✅ حفظ الحالة
             await set_state(
                 chat_id=chat_id, 
                 state=state

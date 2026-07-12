@@ -6,7 +6,6 @@ from collections.abc import Awaitable
 
 from app.core.logger import logger
 
-# ✅ استيراد دوال المساعدة من state_helper
 from app.helpers.state_helper import append_to_state_list
 
 from app.services.telegram import (
@@ -127,11 +126,19 @@ class UIManager:
             new_message_id = response.get("result", {}).get("message_id")
 
             if new_message_id:
-                # ✅ استخدام الدالة من state_helper
+                # ✅ تخزين message_id باستخدام state_helper
                 await append_to_state_list(
                     chat_id=chat_id,
                     list_key="message_ids",
                     value=new_message_id,
+                )
+
+                logger.debug(
+                    "message_id_stored_via_ui_manager",
+                    extra={
+                        "chat_id": chat_id,
+                        "message_id": new_message_id,
+                    },
                 )
 
         return response

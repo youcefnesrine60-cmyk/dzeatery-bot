@@ -175,37 +175,23 @@ async def back_step_callback(
     # 🏠 NO PREVIOUS STEP → MAIN MENU
     # ==========================================
 
-    if not previous:
-        try:
-            await delete_state(chat_id=chat_id)
+    # ✅ حذف الحالة
+    await delete_state(chat_id=chat_id)
 
-            logger.info(
-                "back_button_pressed_no_previous",
-                extra={
-                    "chat_id": chat_id,
-                },
-            )
+    logger.info(
+        "back_button_pressed_no_previous",
+        extra={
+            "chat_id": chat_id,
+        },
+    )
 
-            # ✅ إرسال رسالة جديدة للقائمة الرئيسية
-            await UIManager.update(
-                chat_id=chat_id,
-                text=WELCOME_MESSAGE,
-                reply_markup=await main_menu_ui(),
-                # ❌ لا نمرر message_id لنرسل رسالة جديدة
-            )
-
-            return
-
-        except Exception as e:
-            logger.exception(
-                "back_button_pressed_cleanup_failed",
-                extra={
-                    "chat_id": chat_id,
-                    "error": str(e),
-                },
-            )
-            return
-
+    # ✅ إرسال القائمة الرئيسية
+    await UIManager.update(
+        chat_id=chat_id,
+        text=WELCOME_MESSAGE,
+        reply_markup=await main_menu_ui(),
+    )
+    
     # ==========================================
     # 📝 TEXT STEPS
     # ==========================================
