@@ -91,8 +91,10 @@ async def back_main_callback(
     العودة إلى القائمة الرئيسية مع حذف جميع الرسائل السابقة
     """
     try:
+        # 🧹 حذف جميع الرسائل المخزنة
         await _cleanup_messages(chat_id=chat_id)
 
+        # 🗑️ حذف الحالة بالكامل
         await delete_state(chat_id=chat_id)
 
         logger.info(
@@ -102,11 +104,12 @@ async def back_main_callback(
             },
         )
 
+        # ✅ إرسال رسالة جديدة للقائمة الرئيسية (بدون message_id)
         await UIManager.update(
             chat_id=chat_id,
             text=WELCOME_MESSAGE,
             reply_markup=await main_menu_ui(),
-            message_id=message_id,
+            # ❌ لا نمرر message_id لنرسل رسالة جديدة
         )
 
     except Exception as e:
@@ -162,9 +165,15 @@ async def back_step_callback(
     """
     العودة إلى الخطوة السابقة مع حذف جميع الرسائل السابقة
     """
+    # 🧹 حذف جميع الرسائل المخزنة
     await _cleanup_messages(chat_id=chat_id)
 
+    # 🔙 العودة إلى الخطوة السابقة
     previous = await go_back(chat_id=chat_id)
+
+    # ==========================================
+    # 🏠 NO PREVIOUS STEP → MAIN MENU
+    # ==========================================
 
     if not previous:
         try:
@@ -177,11 +186,12 @@ async def back_step_callback(
                 },
             )
 
+            # ✅ إرسال رسالة جديدة للقائمة الرئيسية
             await UIManager.update(
                 chat_id=chat_id,
                 text=WELCOME_MESSAGE,
                 reply_markup=await main_menu_ui(),
-                message_id=message_id,
+                # ❌ لا نمرر message_id لنرسل رسالة جديدة
             )
 
             return
@@ -195,6 +205,10 @@ async def back_step_callback(
                 },
             )
             return
+
+    # ==========================================
+    # 📝 TEXT STEPS
+    # ==========================================
 
     steps_text = {
         OwnerStates.NAME: OWNER_NAME,
@@ -215,10 +229,12 @@ async def back_step_callback(
             },
         )
 
+        # ✅ إرسال رسالة جديدة لخطوة الموقع
         await UIManager.update(
             chat_id=chat_id,
             text="📍 اضغط على الزر لفتح الخريطة واختيار موقع المحل الحقيقي:",
             reply_markup=await location_webapp_ui(),
+            # ❌ لا نمرر message_id لنرسل رسالة جديدة
         )
 
     # ==========================================
@@ -233,10 +249,12 @@ async def back_step_callback(
             },
         )
 
+        # ✅ إرسال رسالة جديدة لخطوة النوع
         await UIManager.update(
             chat_id=chat_id,
             text="🍽️ اختر نوع المحل:",
             reply_markup=await types_ui(),
+            # ❌ لا نمرر message_id لنرسل رسالة جديدة
         )
 
     # ==========================================
@@ -252,11 +270,12 @@ async def back_step_callback(
             },
         )
 
+        # ✅ إرسال رسالة جديدة للخطوة السابقة
         await UIManager.update(
             chat_id=chat_id,
             text=steps_text[previous],
             reply_markup=await back_ui(),
-            message_id=message_id,
+            # ❌ لا نمرر message_id لنرسل رسالة جديدة
         )
 
     # ==========================================
@@ -272,9 +291,10 @@ async def back_step_callback(
             },
         )
 
+        # ✅ إرسال رسالة جديدة للقائمة الرئيسية
         await UIManager.update(
             chat_id=chat_id,
             text=WELCOME_MESSAGE,
             reply_markup=await main_menu_ui(),
-            message_id=message_id,
+            # ❌ لا نمرر message_id لنرسل رسالة جديدة
         )
