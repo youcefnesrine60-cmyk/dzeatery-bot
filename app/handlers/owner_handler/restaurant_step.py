@@ -118,15 +118,13 @@ async def handle_restaurant_step(
             },
         )
 
+    # ✅ إرسال رسالة "أدخل الولاية" (ui_manager يخزن message_id تلقائياً)
     wilaya_message_id = await send_wilaya_name(
         chat_id=chat_id,
         message_id=restaurant_message_id,
     )
 
-    # ==========================================
-    # 💾 SAVE WILAYA MESSAGE ID (تحديث جزئي)
-    # ==========================================
-
+    # ✅ فقط نخزن wilaya_message_id في الحالة للاستخدام المستقبلي
     if wilaya_message_id:
         await update_state_field(
             chat_id=chat_id,

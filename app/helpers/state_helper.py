@@ -8,8 +8,8 @@ from typing import Any
 from app.core.logger import logger
 
 from app.repositories.state_repo import (
-    get_state, 
-    set_state
+    get_state,
+    set_state,
 )
 
 # ==============================================
@@ -57,7 +57,7 @@ async def update_state_field(
         state[key] = value
 
         await set_state(
-            chat_id=chat_id,
+            chat_id=chat_id, 
             state=state
         )
 
@@ -93,7 +93,7 @@ async def append_to_state_list(
     value: Any,
 ) -> None:
     """
-    إضافة عنصر إلى قائمة في الحالة
+    إضافة عنصر إلى قائمة في الحالة (مع منع التكرار)
     """
     try:
         state = await get_state(
@@ -106,21 +106,24 @@ async def append_to_state_list(
         if list_key not in state:
             state[list_key] = []
 
-        state[list_key].append(value)
+        # ✅ منع إضافة message_id مكرر
+        if value not in state[list_key]:
+            state[list_key].append(value)
 
-        await set_state(
-            chat_id=chat_id, 
-            state=state
-        )
+            await set_state(
+                chat_id=chat_id, 
+                state=state
+            )
 
-        logger.debug(
-            "state_list_appended",
-            extra={
-                "chat_id": chat_id,
-                "list_key": list_key,
-                "value": value,
-            },
-        )
+            logger.debug(
+                "state_list_appended",
+                extra={
+                    "chat_id": chat_id,
+                    "list_key": list_key,
+                    "value": value,
+                    "list_length": len(state[list_key]),
+                },
+            )
 
     except Exception as e:
         logger.error(

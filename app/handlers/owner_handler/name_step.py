@@ -8,7 +8,7 @@ from app.core.logger import logger
 
 from app.helpers.message import send_restaurant_name
 from app.helpers.safe_sanitize import safe_sanitize
-from app.helpers.state_helper import get_user_state, update_state_field
+from app.helpers.state_helper import update_state_field
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 
@@ -118,15 +118,13 @@ async def handle_name_step(
             },
         )
 
+    # ✅ إرسال رسالة "أدخل اسم المحل" (ui_manager يخزن message_id تلقائياً)
     restaurant_message_id = await send_restaurant_name(
         chat_id=chat_id,
         message_id=bot_message_id,
     )
 
-    # ==========================================
-    # 💾 SAVE RESTAURANT MESSAGE ID (تحديث جزئي)
-    # ==========================================
-
+    # ✅ فقط نخزن restaurant_message_id في الحالة للاستخدام المستقبلي
     if restaurant_message_id:
         await update_state_field(
             chat_id=chat_id,
