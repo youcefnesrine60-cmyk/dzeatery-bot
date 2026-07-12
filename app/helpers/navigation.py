@@ -5,19 +5,19 @@
 from typing import Any
 
 from app.core.logger import logger
-from app.states.owner_states import OwnerStates
 
 from app.repositories.state_repo import (
     get_state,
-    set_state
+    set_state,
 )
+
+from app.states.owner_states import OwnerStates
 
 # ==============================================
 # 🧹 STEP CLEANUP MAP
 # ==============================================
 
 STEP_CLEANUP: dict[str, list[str]] = {
-
     OwnerStates.NAME: [
         "owner",
         "restaurant",
@@ -25,42 +25,38 @@ STEP_CLEANUP: dict[str, list[str]] = {
         "lat",
         "lng",
         "type",
-        "phone"
+        "phone",
     ],
-
     OwnerStates.RESTAURANT: [
         "restaurant",
         "wilaya",
         "lat",
         "lng",
         "type",
-        "phone"
+        "phone",
     ],
-
     OwnerStates.WILAYA: [
         "wilaya",
         "lat",
         "lng",
         "type",
-        "phone"
+        "phone",
     ],
-
     OwnerStates.LOCATION: [
         "lat",
         "lng",
         "type",
-        "phone"
+        "phone",
     ],
-
     OwnerStates.TYPE: [
         "type",
-        "phone"
+        "phone",
     ],
-
     OwnerStates.PHONE: [
-        "phone"
-    ]
+        "phone",
+    ],
 }
+
 
 # ==============================================
 # 🔙 GO BACK
@@ -68,11 +64,19 @@ STEP_CLEANUP: dict[str, list[str]] = {
 
 async def go_back(
     *,
-    chat_id: int
+    chat_id: int,
 ) -> str | None:
-
+    """
+    العودة إلى الخطوة السابقة في تدفق المستخدم
+    
+    Args:
+        chat_id: معرف المستخدم
+        
+    Returns:
+        str | None: اسم الخطوة السابقة أو None
+    """
     state: dict[str, Any] | None = await get_state(
-        chat_id = chat_id
+        chat_id=chat_id,
     )
 
     # ==========================================
@@ -80,12 +84,11 @@ async def go_back(
     # ==========================================
 
     if not state or not isinstance(state, dict):
-
         logger.warning(
             "navigation_invalid_state",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
         return None
 
@@ -96,12 +99,11 @@ async def go_back(
     # ==========================================
 
     if not isinstance(history, list):
-
         logger.warning(
             "navigation_invalid_history",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
         return None
 
@@ -110,12 +112,11 @@ async def go_back(
     # ==========================================
 
     if not history:
-
         logger.info(
             "navigation_history_empty",
             extra={
-                "chat_id": chat_id
-            }
+                "chat_id": chat_id,
+            },
         )
         return None
 
@@ -145,8 +146,8 @@ async def go_back(
     # ==========================================
 
     await set_state(
-        chat_id = chat_id,
-        state = state
+        chat_id=chat_id,
+        state=state,
     )
 
     logger.info(
@@ -154,8 +155,8 @@ async def go_back(
         extra={
             "chat_id": chat_id,
             "step": previous_step,
-            "history_size": len(history)
-        }
+            "history_size": len(history),
+        },
     )
 
     return previous_step

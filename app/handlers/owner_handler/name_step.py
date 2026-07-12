@@ -8,10 +8,9 @@ from app.core.logger import logger
 
 from app.helpers.message import send_restaurant_name
 from app.helpers.safe_sanitize import safe_sanitize
+from app.helpers.state_helper import get_user_state, update_state_field
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
-
-from app.repositories.state_repo import set_state
 
 from app.states.owner_states import OwnerStates
 
@@ -22,6 +21,7 @@ from app.views.ui import back_ui
 # ==============================================
 
 StateData = dict[str, Any]
+
 
 # ==============================================
 # 👤 HANDLE OWNER NAME STEP
@@ -34,10 +34,19 @@ async def handle_name_step(
     state: StateData,
     message_id: int,
 ) -> None:
+    """
+    معالجة إدخال اسم المالك
+    """
+    logger.info(
+        "handle_name_step",
+        extra={
+            "chat_id": chat_id,
+            "text_length": len(text),
+        },
+    )
 
     # ==========================================
     # 🧼 SANITIZE INPUT
-    # ... التحقق من صحة الاسم ...
     # ==========================================
 
     clean = safe_sanitize(
@@ -46,32 +55,9 @@ async def handle_name_step(
         field="owner",
     )
 
-    # ==========================================
-    # ✅ استخدام owner_name_message_id 
-    # المحفوظ في الحالة
-    # ==========================================
-
-    owner_name_message_id = state.get("owner_name_message_id")
-
-    if owner_name_message_id is None:
-        # إذا لم يكن موجوداً، نستخدم message_id الخاص بالمستخدم (كحل احتياطي)
-        owner_name_message_id = message_id
-        logger.warning(
-            "owner_name_message_id_not_found_using_user_message_id",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id,
-            },
-        )
-
-    # ==========================================
-    # 🚫 INVALID INPUT
-    # ==========================================
-
     if clean is None:
-
         logger.warning(
-            "invalid_owner",
+            "invalid_owner_name",
             extra={
                 "chat_id": chat_id,
             },
@@ -79,20 +65,28 @@ async def handle_name_step(
 
         await UIManager.update(
             chat_id=chat_id,
-            text="❌ الاسم غير صالح.",
+            text="❌ الاسم غير صالح. يرجى إدخال اسم صحيح.",
             reply_markup=await back_ui(),
+            message_id=message_id,
         )
-
         return
 
     # ==========================================
-    # 💾 SAVE STATE ( # ... حفظ البيانات  ...)
+    # 💾 SAVE STATE
     # ==========================================
 
     state["owner"] = clean
 
+    logger.info(
+        "owner_name_saved",
+        extra={
+            "chat_id": chat_id,
+            "owner_name": clean,
+        },
+    )
+
     # ==========================================
-    # 🔄 TRANSITION (الانتقال)
+    # 🔄 TRANSITION TO RESTAURANT STEP
     # ==========================================
 
     if not await transition_to(
@@ -101,32 +95,49 @@ async def handle_name_step(
         next_state=OwnerStates.RESTAURANT,
     ):
         logger.error(
-            "owner_transition_failed",
+            "owner_transition_to_restaurant_failed",
             extra={
                 "chat_id": chat_id,
             },
         )
         return
-    
+
     # ==========================================
-    # 🍽️ REQUEST RESTAURANT NAME
+    # 🍽️ SEND RESTAURANT NAME SCREEN
     # ==========================================
 
-    # ✅ الحصول على message_id الجديد
-    restau_message_id = await send_restaurant_name(
+    bot_message_id = state.get("bot_message_id")
+
+    if bot_message_id is None:
+        bot_message_id = message_id
+        logger.warning(
+            "bot_message_id_not_found_using_user_message_id",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
+
+    restaurant_message_id = await send_restaurant_name(
         chat_id=chat_id,
-        message_id=owner_name_message_id,
+        message_id=bot_message_id,
     )
 
-    # ✅ حفظ message_id الجديد في الحالة (للاستخدام المستقبلي)
-    if restau_message_id:
-        state["restaurant_message_id"] = restau_message_id
-        await set_state(
+    # ==========================================
+    # 💾 SAVE RESTAURANT MESSAGE ID (تحديث جزئي)
+    # ==========================================
+
+    if restaurant_message_id:
+        await update_state_field(
             chat_id=chat_id,
-            state={
-                "flow": "owner",
-                "step": OwnerStates.RESTAURANT,
-                "history": [],
-                "restaurant_message_id": restau_message_id,
+            key="restaurant_message_id",
+            value=restaurant_message_id,
+        )
+
+        logger.info(
+            "restaurant_message_id_saved",
+            extra={
+                "chat_id": chat_id,
+                "restaurant_message_id": restaurant_message_id,
             },
         )

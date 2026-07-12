@@ -8,10 +8,9 @@ from app.core.logger import logger
 
 from app.helpers.message import send_wilaya_name
 from app.helpers.safe_sanitize import safe_sanitize
+from app.helpers.state_helper import update_state_field
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
-
-from app.repositories.state_repo import set_state
 
 from app.states.owner_states import OwnerStates
 
@@ -22,6 +21,7 @@ from app.views.ui import back_ui
 # ==============================================
 
 StateData = dict[str, Any]
+
 
 # ==============================================
 # 🏪 HANDLE RESTAURANT STEP
@@ -34,6 +34,16 @@ async def handle_restaurant_step(
     state: StateData,
     message_id: int,
 ) -> None:
+    """
+    معالجة إدخال اسم المحل
+    """
+    logger.info(
+        "handle_restaurant_step",
+        extra={
+            "chat_id": chat_id,
+            "text_length": len(text),
+        },
+    )
 
     # ==========================================
     # 🧼 SANITIZE INPUT
@@ -45,31 +55,9 @@ async def handle_restaurant_step(
         field="restaurant",
     )
 
-    # ==========================================
-    # ✅ استخدام restaurant_message_id المحفوظ في الحالة
-    # ==========================================
-
-    restau_message_id = state.get("restaurant_message_id")
-
-    if restau_message_id is None:
-        # إذا لم يكن موجوداً، نستخدم message_id الخاص بالمستخدم (كحل احتياطي)
-        restau_message_id = message_id
-        logger.warning(
-            "restaurant_message_id_not_found_using_user_message_id",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id,
-            },
-        )
-
-    # ==========================================
-    # 🚫 INVALID INPUT
-    # ==========================================
-
     if clean is None:
-
         logger.warning(
-            "invalid_restaurant",
+            "invalid_restaurant_name",
             extra={
                 "chat_id": chat_id,
             },
@@ -77,10 +65,10 @@ async def handle_restaurant_step(
 
         await UIManager.update(
             chat_id=chat_id,
-            text="❌ اسم المحل غير صالح.",
+            text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
             reply_markup=await back_ui(),
+            message_id=message_id,
         )
-
         return
 
     # ==========================================
@@ -89,8 +77,16 @@ async def handle_restaurant_step(
 
     state["restaurant"] = clean
 
+    logger.info(
+        "restaurant_name_saved",
+        extra={
+            "chat_id": chat_id,
+            "restaurant_name": clean,
+        },
+    )
+
     # ==========================================
-    # 🔄 TRANSITION
+    # 🔄 TRANSITION TO WILAYA STEP
     # ==========================================
 
     if not await transition_to(
@@ -99,7 +95,7 @@ async def handle_restaurant_step(
         next_state=OwnerStates.WILAYA,
     ):
         logger.error(
-            "restaurant_transition_failed",
+            "restaurant_transition_to_wilaya_failed",
             extra={
                 "chat_id": chat_id,
             },
@@ -107,24 +103,41 @@ async def handle_restaurant_step(
         return
 
     # ==========================================
-    # 🗺️ REQUEST WILAYA
+    # 🗺️ SEND WILAYA NAME SCREEN
     # ==========================================
 
-    # ✅ الحصول على message_id الجديد
+    restaurant_message_id = state.get("restaurant_message_id")
+
+    if restaurant_message_id is None:
+        restaurant_message_id = message_id
+        logger.warning(
+            "restaurant_message_id_not_found_using_user_message_id",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
+
     wilaya_message_id = await send_wilaya_name(
         chat_id=chat_id,
-        message_id=restau_message_id,
+        message_id=restaurant_message_id,
     )
 
-    # ✅ حفظ message_id الجديد في الحالة (للاستخدام المستقبلي)
+    # ==========================================
+    # 💾 SAVE WILAYA MESSAGE ID (تحديث جزئي)
+    # ==========================================
+
     if wilaya_message_id:
-        state["wilaya_message_id"] = wilaya_message_id
-        await set_state(
+        await update_state_field(
             chat_id=chat_id,
-            state={
-                "flow": "owner",
-                "step": OwnerStates.WILAYA,
-                "history": [],
+            key="wilaya_message_id",
+            value=wilaya_message_id,
+        )
+
+        logger.info(
+            "wilaya_message_id_saved",
+            extra={
+                "chat_id": chat_id,
                 "wilaya_message_id": wilaya_message_id,
             },
         )
