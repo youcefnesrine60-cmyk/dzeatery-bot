@@ -1,5 +1,5 @@
 # ==============================================
-# 👤 OWNER NAME STEP
+# 👤 OWNER NAME STEP - VERSION PRO
 # ==============================================
 
 from typing import Any
@@ -8,7 +8,10 @@ from app.core.logger import logger
 
 from app.helpers.message import send_restaurant_name
 from app.helpers.safe_sanitize import safe_sanitize
-from app.helpers.state_helper import update_state_field
+from app.helpers.state_helper import (
+    update_state_field, 
+    update_state_fields
+)
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 
@@ -35,7 +38,13 @@ async def handle_name_step(
     message_id: int,
 ) -> None:
     """
-    معالجة إدخال اسم المالك
+    معالجة إدخال اسم المالك بطريقة محسنة
+
+    Args:
+        chat_id: معرف المستخدم
+        text: النص المدخل
+        state: حالة المستخدم الحالية
+        message_id: معرف الرسالة المراد تعديلها
     """
     logger.info(
         "handle_name_step",
@@ -63,19 +72,26 @@ async def handle_name_step(
             },
         )
 
-        await UIManager.update(
+        # تعديل الرسالة الحالية بدلاً من إرسال جديدة
+        await UIManager.edit(
             chat_id=chat_id,
+            message_id=message_id,
             text="❌ الاسم غير صالح. يرجى إدخال اسم صحيح.",
             reply_markup=await back_ui(),
-            message_id=message_id,
         )
         return
 
     # ==========================================
-    # 💾 SAVE STATE
+    # 💾 SAVE STATE (تحديث متعدد الحقول)
     # ==========================================
 
-    state["owner"] = clean
+    await update_state_fields(
+        chat_id=chat_id,
+        fields={
+            "owner": clean,
+            "step": OwnerStates.RESTAURANT,
+        },
+    )
 
     logger.info(
         "owner_name_saved",
@@ -106,10 +122,9 @@ async def handle_name_step(
     # 🍽️ SEND RESTAURANT NAME SCREEN
     # ==========================================
 
-    bot_message_id = state.get("bot_message_id")
+    bot_message_id = state.get("bot_message_id") or message_id
 
-    if bot_message_id is None:
-        bot_message_id = message_id
+    if not state.get("bot_message_id"):
         logger.warning(
             "bot_message_id_not_found_using_user_message_id",
             extra={
@@ -118,13 +133,13 @@ async def handle_name_step(
             },
         )
 
-    # ✅ إرسال رسالة "أدخل اسم المحل" (ui_manager يخزن message_id تلقائياً)
+    # إرسال رسالة "أدخل اسم المحل"
     restaurant_message_id = await send_restaurant_name(
         chat_id=chat_id,
         message_id=bot_message_id,
     )
 
-    # ✅ فقط نخزن restaurant_message_id في الحالة للاستخدام المستقبلي
+    # حفظ معرف الرسالة الجديدة
     if restaurant_message_id:
         await update_state_field(
             chat_id=chat_id,

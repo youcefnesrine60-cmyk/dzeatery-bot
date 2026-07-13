@@ -1,5 +1,5 @@
 # ==============================================
-# 🔙 NAVIGATION
+# 🔙 NAVIGATION - VERSION PRO
 # ==============================================
 
 import re
@@ -7,12 +7,8 @@ import re
 from app.core.logger import logger
 
 from app.helpers.navigation import go_back
-from app.helpers.state_helper import get_user_state, update_state_field
+from app.helpers.state_helper import clear_user_state
 from app.helpers.ui_manager import UIManager
-
-from app.repositories.state_repo import delete_state
-
-from app.services.telegram import delete_message
 
 from app.states.owner_states import OwnerStates
 
@@ -23,7 +19,6 @@ from app.views.texts import (
     WELCOME_MESSAGE,
     WILAYA_NAME,
 )
-
 from app.views.ui import (
     back_ui,
     location_webapp_ui,
@@ -32,52 +27,249 @@ from app.views.ui import (
 )
 
 # ==============================================
-# 🧹 CLEANUP USER MESSAGES
+# 🧩 TYPES
 # ==============================================
 
-async def _cleanup_messages(
+ReplyMarkup = dict[str, object] | None
+
+
+# ==============================================
+# 🔙 BACK TO MAIN MENU
+# ==============================================
+
+async def back_to_main_menu(
     *,
     chat_id: int,
+    current_message_id: int | None = None,
+    show_welcome: bool = True,
+) -> bool:
+    """
+    العودة إلى القائمة الرئيسية مع تنظيف شامل
+
+    Args:
+        chat_id: معرف المحادثة
+        current_message_id: معرف الرسالة الحالية (سيتم حذفها)
+        show_welcome: عرض رسالة الترحيب أو لا
+
+    Returns:
+        bool: True إذا تمت العملية بنجاح
+    """
+    try:
+        # 🧹 تنظيف جميع الرسائل
+        await UIManager.cleanup_messages(
+            chat_id=chat_id,
+            preserve_message_id=None,
+        )
+
+        # 🗑️ حذف الحالة بالكامل
+        await clear_user_state(chat_id=chat_id)
+
+        logger.info(
+            "back_to_main_menu",
+            extra={
+                "chat_id": chat_id,
+            },
+        )
+
+        # ✅ إرسال القائمة الرئيسية
+        text = WELCOME_MESSAGE if show_welcome else "🏠 القائمة الرئيسية"
+
+        await UIManager.send_new_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=await main_menu_ui(),
+        )
+
+        return True
+
+    except Exception as e:
+        logger.exception(
+            "back_to_main_menu_failed",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
+        )
+        return False
+
+
+# ==============================================
+# 🔙 BACK STEP CALLBACK
+# ==============================================
+
+async def back_step_callback(
+    *,
+    chat_id: int,
+    message_id: int,
+    callback_data: str,
+    match: re.Match,
 ) -> None:
     """
-    حذف جميع الرسائل المخزنة للمستخدم
+    العودة إلى الخطوة السابقة مع إدارة ذكية للرسائل
     """
-    state = await get_user_state(chat_id=chat_id)
+    try:
+        # 🧹 حذف الرسائل السابقة مع الاحتفاظ بالرسالة الحالية
+        await UIManager.cleanup_messages(
+            chat_id=chat_id,
+            preserve_message_id=message_id,
+        )
 
-    if not state:
-        return
+        # 🔙 العودة إلى الخطوة السابقة
+        previous_step = await go_back(chat_id=chat_id)
 
-    message_ids = state.get("message_ids")
+        # ==========================================
+        # 🏠 NO PREVIOUS STEP → MAIN MENU
+        # ==========================================
 
-    if not isinstance(message_ids, list):
-        return
-
-    for msg_id in message_ids:
-        try:
-            await delete_message(
-                chat_id=chat_id,
-                message_id=msg_id,
-            )
-        except Exception as e:
-            logger.warning(
-                "delete_message_failed",
+        if not previous_step:
+            logger.info(
+                "back_button_no_previous_step",
                 extra={
                     "chat_id": chat_id,
-                    "message_id": msg_id,
-                    "error": str(e),
+                    "step": previous_step,
                 },
             )
 
-    # مسح القائمة بعد الحذف
-    await update_state_field(
-        chat_id=chat_id,
-        key="message_ids",
-        value=[],
-    )
+            # حذف الرسالة الحالية
+            await UIManager.delete(
+                chat_id=chat_id,
+                message_id=message_id,
+            )
+
+            # العودة إلى القائمة الرئيسية
+            await back_to_main_menu(
+                chat_id=chat_id,
+                current_message_id=None,
+                show_welcome=True,
+            )
+            return
+
+        # ==========================================
+        # 📝 TEXT STEPS MAPPING
+        # ==========================================
+
+        STEPS_TEXT = {
+            OwnerStates.NAME: OWNER_NAME,
+            OwnerStates.RESTAURANT: RESTAU_NAME,
+            OwnerStates.WILAYA: WILAYA_NAME,
+            OwnerStates.PHONE: PHONE_NUMBER,
+        }
+
+        # ==========================================
+        # 📍 LOCATION STEP
+        # ==========================================
+
+        if previous_step == OwnerStates.LOCATION:
+            logger.info(
+                "back_to_location_step",
+                extra={
+                    "chat_id": chat_id,
+                    "step": previous_step,
+                },
+            )
+
+            # تحديث الرسالة الحالية
+            await UIManager.edit(
+                chat_id=chat_id,
+                message_id=message_id,
+                text="📍 اضغط على الزر لفتح الخريطة واختيار موقع المحل:",
+                reply_markup=await location_webapp_ui(),
+            )
+
+        # ==========================================
+        # 🍽️ TYPE STEP
+        # ==========================================
+
+        elif previous_step == OwnerStates.TYPE:
+            logger.info(
+                "back_to_type_step",
+                extra={
+                    "chat_id": chat_id,
+                    "step": previous_step,
+                },
+            )
+
+            await UIManager.edit(
+                chat_id=chat_id,
+                message_id=message_id,
+                text="🍽️ اختر نوع المحل:",
+                reply_markup=await types_ui(),
+            )
+
+        # ==========================================
+        # 📝 TEXT INPUT STEP
+        # ==========================================
+
+        elif previous_step in STEPS_TEXT:
+            logger.info(
+                "back_to_text_step",
+                extra={
+                    "chat_id": chat_id,
+                    "step": previous_step,
+                },
+            )
+
+            await UIManager.edit(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=STEPS_TEXT[previous_step],
+                reply_markup=await back_ui(),
+            )
+
+        # ==========================================
+        # 🚫 UNKNOWN STEP
+        # ==========================================
+
+        else:
+            logger.warning(
+                "unknown_step_on_back",
+                extra={
+                    "chat_id": chat_id,
+                    "step": previous_step,
+                },
+            )
+
+            # حذف الرسالة الحالية والعودة للقائمة
+            await UIManager.delete(
+                chat_id=chat_id,
+                message_id=message_id,
+            )
+
+            await back_to_main_menu(
+                chat_id=chat_id,
+                current_message_id=None,
+                show_welcome=True,
+            )
+
+    except Exception as e:
+        logger.exception(
+            "back_step_callback_failed",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
+
+        # في حالة الخطأ، نحاول العودة للقائمة الرئيسية
+        try:
+            await back_to_main_menu(
+                chat_id=chat_id,
+                current_message_id=message_id,
+                show_welcome=True,
+            )
+        except Exception as fallback_error:
+            logger.error(
+                "back_step_fallback_failed",
+                extra={
+                    "chat_id": chat_id,
+                    "error": str(fallback_error),
+                },
+            )
 
 
 # ==============================================
-# 🔙 BACK MAIN
+# 🔙 BACK MAIN CALLBACK
 # ==============================================
 
 async def back_main_callback(
@@ -88,42 +280,17 @@ async def back_main_callback(
     match: re.Match,
 ) -> None:
     """
-    العودة إلى القائمة الرئيسية مع حذف جميع الرسائل السابقة
+    نقطة الدخول للعودة إلى القائمة الرئيسية
     """
-    try:
-        # 🧹 حذف جميع الرسائل المخزنة
-        await _cleanup_messages(chat_id=chat_id)
-
-        # 🗑️ حذف الحالة بالكامل
-        await delete_state(chat_id=chat_id)
-
-        logger.info(
-            "back_to_main_menu",
-            extra={
-                "chat_id": chat_id,
-            },
-        )
-
-        # ✅ إرسال رسالة جديدة للقائمة الرئيسية (بدون message_id)
-        await UIManager.update(
-            chat_id=chat_id,
-            text=WELCOME_MESSAGE,
-            reply_markup=await main_menu_ui(),
-            # ❌ لا نمرر message_id لنرسل رسالة جديدة
-        )
-
-    except Exception as e:
-        logger.exception(
-            "back_to_main_menu_failed",
-            extra={
-                "chat_id": chat_id,
-                "error": str(e),
-            },
-        )
+    await back_to_main_menu(
+        chat_id=chat_id,
+        current_message_id=message_id,
+        show_welcome=True,
+    )
 
 
 # ==============================================
-# ❌ DECLINE
+# ❌ DECLINE CALLBACK
 # ==============================================
 
 async def decline_callback(
@@ -136,151 +303,36 @@ async def decline_callback(
     """
     رفض الموافقة على الشروط
     """
-    logger.info(
-        "owner_declined_consent",
-        extra={
-            "chat_id": chat_id,
-        },
-    )
-
-    await UIManager.update(
-        chat_id=chat_id,
-        text="❌ نعتذر! لا يمكن استخدام البوت بدون الموافقة على سياسة حماية المعطيات ذات الطابع الشخصي",
-        reply_markup=await main_menu_ui(),
-        message_id=message_id,
-    )
-
-
-# ==============================================
-# 🔙 BACK STEP
-# ==============================================
-
-async def back_step_callback(
-    *,
-    chat_id: int,
-    message_id: int,
-    callback_data: str,
-    match: re.Match,
-) -> None:
-    """
-    العودة إلى الخطوة السابقة مع حذف جميع الرسائل السابقة
-    """
-    # 🧹 حذف جميع الرسائل المخزنة
-    await _cleanup_messages(chat_id=chat_id)
-
-    # 🔙 العودة إلى الخطوة السابقة
-    previous = await go_back(chat_id=chat_id)
-
-    # ==========================================
-    # 🏠 NO PREVIOUS STEP → MAIN MENU
-    # ==========================================
-
-    # ✅ حذف الحالة
-    await delete_state(chat_id=chat_id)
-
-    logger.info(
-        "back_button_pressed_no_previous",
-        extra={
-            "chat_id": chat_id,
-        },
-    )
-
-    # ✅ إرسال القائمة الرئيسية
-    await UIManager.update(
-        chat_id=chat_id,
-        text=WELCOME_MESSAGE,
-        reply_markup=await main_menu_ui(),
-    )
-    
-    # ==========================================
-    # 📝 TEXT STEPS
-    # ==========================================
-
-    steps_text = {
-        OwnerStates.NAME: OWNER_NAME,
-        OwnerStates.RESTAURANT: RESTAU_NAME,
-        OwnerStates.WILAYA: WILAYA_NAME,
-        OwnerStates.PHONE: PHONE_NUMBER,
-    }
-
-    # ==========================================
-    # 📍 LOCATION STEP
-    # ==========================================
-
-    if previous == OwnerStates.LOCATION:
+    try:
         logger.info(
-            "went_back_to_location_step",
+            "owner_declined_consent",
             extra={
                 "chat_id": chat_id,
             },
         )
 
-        # ✅ إرسال رسالة جديدة لخطوة الموقع
-        await UIManager.update(
+        # تنظيف الرسائل
+        await UIManager.cleanup_messages(
             chat_id=chat_id,
-            text="📍 اضغط على الزر لفتح الخريطة واختيار موقع المحل الحقيقي:",
-            reply_markup=await location_webapp_ui(),
-            # ❌ لا نمرر message_id لنرسل رسالة جديدة
+            preserve_message_id=message_id,
         )
 
-    # ==========================================
-    # 🍽️ TYPE STEP
-    # ==========================================
-
-    elif previous == OwnerStates.TYPE:
-        logger.info(
-            "went_back_to_type_step",
-            extra={
-                "chat_id": chat_id,
-            },
-        )
-
-        # ✅ إرسال رسالة جديدة لخطوة النوع
-        await UIManager.update(
+        # تحديث الرسالة الحالية
+        await UIManager.edit(
             chat_id=chat_id,
-            text="🍽️ اختر نوع المحل:",
-            reply_markup=await types_ui(),
-            # ❌ لا نمرر message_id لنرسل رسالة جديدة
-        )
-
-    # ==========================================
-    # 📝 TEXT INPUT STEP
-    # ==========================================
-
-    elif previous in steps_text:
-        logger.info(
-            "went_back_to_previous_step",
-            extra={
-                "chat_id": chat_id,
-                "step": previous,
-            },
-        )
-
-        # ✅ إرسال رسالة جديدة للخطوة السابقة
-        await UIManager.update(
-            chat_id=chat_id,
-            text=steps_text[previous],
-            reply_markup=await back_ui(),
-            # ❌ لا نمرر message_id لنرسل رسالة جديدة
-        )
-
-    # ==========================================
-    # 🚫 UNKNOWN STEP
-    # ==========================================
-
-    else:
-        logger.warning(
-            "unknown_step_on_back",
-            extra={
-                "chat_id": chat_id,
-                "step": previous,
-            },
-        )
-
-        # ✅ إرسال رسالة جديدة للقائمة الرئيسية
-        await UIManager.update(
-            chat_id=chat_id,
-            text=WELCOME_MESSAGE,
+            message_id=message_id,
+            text="❌ نعتذر! لا يمكن استخدام البوت بدون الموافقة على سياسة حماية المعطيات",
             reply_markup=await main_menu_ui(),
-            # ❌ لا نمرر message_id لنرسل رسالة جديدة
+        )
+
+        # حذف الحالة
+        await clear_user_state(chat_id=chat_id)
+
+    except Exception as e:
+        logger.exception(
+            "decline_callback_failed",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
         )
