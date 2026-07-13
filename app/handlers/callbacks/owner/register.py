@@ -6,15 +6,26 @@
 import re
 
 from app.core.logger import logger
+
 from app.helpers.state_helper import clear_user_state
 from app.helpers.ui_manager import UIManager
-from app.repositories.state_repo import set_state
-from app.repositories.user_repo import give_consent, has_consent
-from app.states.owner_states import OwnerStates
-from app.handlers.callbacks.customer.restaurant_list import show_restaurants
-from app.views.texts import OWNER_NAME
-from app.views.ui import back_ui, consent_text, consent_ui
 
+from app.repositories.state_repo import set_state
+from app.repositories.user_repo import(
+    give_consent, 
+    has_consent
+)
+
+from app.states.owner_states import OwnerStates
+
+from app.handlers.callbacks.customer.restaurant_list import show_restaurants
+
+from app.views.texts import OWNER_NAME
+from app.views.ui import(
+    back_ui, 
+    consent_text, 
+    consent_ui
+)
 
 # ==============================================
 # 👤 OWNER CALLBACK
@@ -56,10 +67,10 @@ async def owner_callback(
             },
         )
 
-        # تنظيف الرسائل السابقة
+        # ✅ تنظيف جميع الرسائل (بما فيها القائمة الرئيسية)
         await UIManager.cleanup_messages(chat_id=chat_id)
 
-        # إرسال رسالة الموافقة
+        # ✅ إرسال رسالة الموافقة
         await UIManager.send_new_message(
             chat_id=chat_id,
             text=await consent_text(),
@@ -73,6 +84,8 @@ async def owner_callback(
     # ==========================================
 
     await clear_user_state(chat_id=chat_id)
+
+    # ✅ تنظيف جميع الرسائل (بما فيها القائمة الرئيسية)
     await UIManager.cleanup_messages(chat_id=chat_id)
 
     # ==========================================
@@ -96,7 +109,7 @@ async def owner_callback(
         },
     )
 
-    # إرسال رسالة جديدة لإدخال الاسم
+    # ✅ إرسال رسالة جديدة لإدخال الاسم (بدون القائمة القديمة)
     await UIManager.send_new_message(
         chat_id=chat_id,
         text=OWNER_NAME,

@@ -85,21 +85,30 @@ async def send_main_menu(
         extra={
             "chat_id": chat_id,
             "message_id": message_id,
+            "cleanup": cleanup,
         },
     )
 
-    # تنظيف الرسائل السابقة
-    if cleanup and message_id is None:
+    # ✅ تنظيف الرسائل السابقة إذا كان مطلوباً
+    if cleanup:
         await UIManager.cleanup_messages(chat_id=chat_id)
 
-    await send_screen(
-        chat_id=chat_id,
-        text=WELCOME_MESSAGE,
-        reply_markup=await main_menu_ui(),
-        screen_name="main_menu",
-        message_id=message_id,
-        store_message_id=True,
-    )
+    # ✅ إذا كان لدينا message_id، نعدل الرسالة
+    if message_id:
+        await UIManager.edit(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=WELCOME_MESSAGE,
+            reply_markup=await main_menu_ui(),
+        )
+    else:
+        # ✅ وإلا نرسل رسالة جديدة
+        await UIManager.send_new_message(
+            chat_id=chat_id,
+            text=WELCOME_MESSAGE,
+            reply_markup=await main_menu_ui(),
+            store_message_id=True,
+        )
 
 
 # ==============================================

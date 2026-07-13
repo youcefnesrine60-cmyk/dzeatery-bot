@@ -9,7 +9,6 @@
 
 from app.core.logger import logger
 from app.core.state_dispatcher import StateDispatcher
-
 from app.core.security.captcha_manager import CaptchaManager
 
 from app.handlers.captcha_handler import handle_captcha
@@ -18,14 +17,15 @@ from app.helpers.message import send_main_menu
 from app.helpers.navigation import go_back
 from app.helpers.ui_manager import UIManager
 
-from app.repositories.state_repo import (
+from app.repositories.state_repo import(
     delete_state,
-    get_state,
-)
+    get_state
+) 
 
 from app.services.telegram import delete_message
 
 from app.states.owner_states import OwnerStates
+
 
 # ==============================================
 # 💬 HANDLE MESSAGE
@@ -41,15 +41,9 @@ async def handle_message(
     # ==========================================
 
     message = data["message"]
-
     chat_id = message["chat"]["id"]
-
     message_id = message["message_id"]
-
-    text = message.get(
-        "text",
-        "",
-    ).strip()
+    text = message.get("text", "").strip()
 
     logger.info(
         "message_received",
@@ -63,10 +57,7 @@ async def handle_message(
     # 🤖 CAPTCHA VERIFICATION
     # ==========================================
 
-    if await CaptchaManager.is_required(
-        chat_id=chat_id,
-    ):
-
+    if await CaptchaManager.is_required(chat_id=chat_id):
         logger.info(
             "captcha_required",
             extra={
@@ -87,7 +78,6 @@ async def handle_message(
     # ==========================================
 
     if text == "/start":
-
         logger.info(
             "start_command",
             extra={
@@ -95,8 +85,13 @@ async def handle_message(
             },
         )
 
+        # تنظيف الرسائل السابقة قبل إرسال القائمة الرئيسية
+        await UIManager.cleanup_messages(chat_id=chat_id)
+
         await send_main_menu(
             chat_id=chat_id,
+            message_id=None,  # إرسال رسالة جديدة
+            cleanup=False,    # لا ننظف مرة أخرى
         )
 
         return
@@ -106,7 +101,6 @@ async def handle_message(
     # ==========================================
 
     if text == "🔙 رجوع":
-
         logger.info(
             "back_requested",
             extra={
@@ -114,24 +108,16 @@ async def handle_message(
             },
         )
 
-        previous = await go_back(
-            chat_id=chat_id,
-        )
+        previous = await go_back(chat_id=chat_id)
 
         # ======================================
         # 🏠 RETURN TO MAIN MENU
         # ======================================
 
         if previous is None:
-
             try:
-
-                await delete_state(
-                    chat_id=chat_id,
-                )
-
+                await delete_state(chat_id=chat_id)
             except Exception as e:
-
                 logger.exception(
                     "state_cleanup_failed",
                     extra={
@@ -140,8 +126,13 @@ async def handle_message(
                     },
                 )
 
+            # تنظيف الرسائل السابقة
+            await UIManager.cleanup_messages(chat_id=chat_id)
+
             await send_main_menu(
                 chat_id=chat_id,
+                message_id=None,
+                cleanup=False,
             )
 
         return
@@ -150,23 +141,19 @@ async def handle_message(
     # 📥 LOAD USER STATE
     # ==========================================
 
-    state = await get_state(
-        chat_id=chat_id,
-    )
+    state = await get_state(chat_id=chat_id)
 
     # ==========================================
     # 🚫 NO ACTIVE STATE
     # ==========================================
 
     if not state:
-
         logger.info(
             "state_not_found",
             extra={
                 "chat_id": chat_id,
             },
         )
-
         return
 
     # ==========================================
@@ -178,7 +165,6 @@ async def handle_message(
         OwnerStates.TYPE,
         OwnerStates.CONFIRM,
     ):
-
         logger.warning(
             "manual_text_in_button_step",
             extra={
@@ -192,11 +178,11 @@ async def handle_message(
             message_id=message_id,
         )
 
-        await UIManager.update(
+        await UIManager.edit(
             chat_id=chat_id,
+            message_id=message_id,
             text="❌ الرجاء استعمال الأزرار فقط.",
             reply_markup=None,
-            message_id=message_id,
         )
 
         return
