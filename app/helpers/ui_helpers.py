@@ -112,7 +112,7 @@ async def send_main_menu(
 
 
 # ==============================================
-# 🍽️ RESTAURANT NAME (معدلة)
+# 🍽️ RESTAURANT NAME
 # ==============================================
 
 async def send_restaurant_name(
@@ -125,7 +125,7 @@ async def send_restaurant_name(
 
     Args:
         chat_id: معرف المستخدم
-        message_id: معرف رسالة البوت المراد تعديلها
+        message_id: معرف الرسالة السابقة للتعديل
 
     Returns:
         int | None: معرف الرسالة الجديدة
@@ -138,7 +138,7 @@ async def send_restaurant_name(
         },
     )
 
-    # 1️⃣ تعديل رسالة البوت السابقة للتأكيد (بدون حذف رسالة المستخدم)
+    # 1️⃣ تعديل الرسالة السابقة للتأكيد
     if message_id:
         await UIManager.edit(
             chat_id=chat_id,
@@ -172,7 +172,7 @@ async def send_restaurant_name(
 
 
 # ==============================================
-# 🗺️ WILAYA NAME (معدلة)
+# 🗺️ WILAYA NAME
 # ==============================================
 
 async def send_wilaya_name(
@@ -185,7 +185,7 @@ async def send_wilaya_name(
 
     Args:
         chat_id: معرف المستخدم
-        message_id: معرف رسالة البوت المراد تعديلها
+        message_id: معرف الرسالة السابقة للتعديل
 
     Returns:
         int | None: معرف الرسالة الجديدة
@@ -198,7 +198,7 @@ async def send_wilaya_name(
         },
     )
 
-    # 1️⃣ تعديل رسالة البوت السابقة للتأكيد (بدون حذف رسالة المستخدم)
+    # 1️⃣ تعديل الرسالة السابقة للتأكيد
     if message_id:
         await UIManager.edit(
             chat_id=chat_id,
