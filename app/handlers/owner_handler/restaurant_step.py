@@ -10,7 +10,6 @@ from app.helpers.safe_sanitize import safe_sanitize
 from app.helpers.state_helper import update_state_field, update_state_fields
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
-from app.services.telegram import delete_message
 from app.states.owner_states import OwnerStates
 from app.views.ui import back_ui
 
@@ -39,7 +38,7 @@ async def handle_restaurant_step(
         chat_id: معرف المستخدم
         text: النص المدخل
         state: حالة المستخدم الحالية
-        message_id: معرف رسالة المستخدم (التي كتب فيها اسم المحل)
+        message_id: معرف رسالة المستخدم (التي كتب فيها اسم المحل) - تبقى ظاهرة
     """
     logger.info(
         "handle_restaurant_step",
@@ -48,33 +47,6 @@ async def handle_restaurant_step(
             "text_length": len(text),
         },
     )
-
-    # ==========================================
-    # 🗑️ DELETE USER MESSAGE
-    # ==========================================
-
-    # ✅ حذف رسالة المستخدم التي كتب فيها اسم المحل
-    try:
-        await delete_message(
-            chat_id=chat_id,
-            message_id=message_id,
-        )
-        logger.debug(
-            "user_message_deleted",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id,
-            },
-        )
-    except Exception as e:
-        logger.warning(
-            "user_message_delete_failed",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "error": str(e),
-            },
-        )
 
     # ==========================================
     # 🧼 SANITIZE INPUT
