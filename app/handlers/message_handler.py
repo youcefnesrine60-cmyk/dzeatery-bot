@@ -13,7 +13,7 @@ from app.core.security.captcha_manager import CaptchaManager
 
 from app.handlers.captcha_handler import handle_captcha
 
-from app.helpers.message import send_main_menu
+from app.helpers.ui_helpers import send_main_menu
 from app.helpers.navigation import go_back
 from app.helpers.ui_manager import UIManager
 

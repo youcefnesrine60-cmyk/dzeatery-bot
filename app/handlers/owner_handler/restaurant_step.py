@@ -5,18 +5,12 @@
 from typing import Any
 
 from app.core.logger import logger
-
-from app.helpers.message import send_wilaya_name
+from app.helpers.ui_helpers import send_wilaya_name
 from app.helpers.safe_sanitize import safe_sanitize
-from app.helpers.state_helper import (
-    update_state_field, 
-    update_state_fields
-)
+from app.helpers.state_helper import update_state_field, update_state_fields
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
-
 from app.states.owner_states import OwnerStates
-
 from app.views.ui import back_ui
 
 # ==============================================
@@ -44,7 +38,7 @@ async def handle_restaurant_step(
         chat_id: معرف المستخدم
         text: النص المدخل
         state: حالة المستخدم الحالية
-        message_id: معرف الرسالة المراد تعديلها
+        message_id: معرف رسالة المستخدم (التي كتب فيها اسم المحل) - تبقى ظاهرة
     """
     logger.info(
         "handle_restaurant_step",
@@ -72,13 +66,22 @@ async def handle_restaurant_step(
             },
         )
 
-        # تعديل الرسالة الحالية بدلاً من إرسال جديدة
-        await UIManager.edit(
-            chat_id=chat_id,
-            message_id=message_id,
-            text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
-            reply_markup=await back_ui(),
-        )
+        # ✅ الحصول على معرف رسالة البوت من الحالة
+        restaurant_message_id = state.get("restaurant_message_id")
+
+        if restaurant_message_id:
+            await UIManager.edit(
+                chat_id=chat_id,
+                message_id=restaurant_message_id,
+                text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
+                reply_markup=await back_ui(),
+            )
+        else:
+            await UIManager.send_new_message(
+                chat_id=chat_id,
+                text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
+                reply_markup=await back_ui(),
+            )
         return
 
     # ==========================================
@@ -122,9 +125,10 @@ async def handle_restaurant_step(
     # 🗺️ SEND WILAYA NAME SCREEN
     # ==========================================
 
-    restaurant_message_id = state.get("restaurant_message_id") or message_id
+    # ✅ استخدام restaurant_message_id من الحالة (رسالة البوت التي تطلب اسم المحل)
+    restaurant_message_id = state.get("restaurant_message_id")
 
-    if not state.get("restaurant_message_id"):
+    if not restaurant_message_id:
         logger.warning(
             "restaurant_message_id_not_found_using_user_message_id",
             extra={
@@ -132,8 +136,9 @@ async def handle_restaurant_step(
                 "message_id": message_id,
             },
         )
+        restaurant_message_id = message_id
 
-    # إرسال رسالة "أدخل الولاية"
+    # ✅ إرسال رسالة "أدخل الولاية" (تعديل رسالة البوت)
     wilaya_message_id = await send_wilaya_name(
         chat_id=chat_id,
         message_id=restaurant_message_id,
