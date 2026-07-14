@@ -1,5 +1,5 @@
 # ==============================================
-# 💬 MESSAGE HANDLER - VERSION PRO
+# 💬 MESSAGE HANDLER - VERSION PRO -
 # ==============================================
 
 from app.core.logger import logger
