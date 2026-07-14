@@ -33,12 +33,6 @@ async def handle_name_step(
 ) -> None:
     """
     معالجة إدخال اسم المالك
-
-    Args:
-        chat_id: معرف المستخدم
-        text: النص المدخل
-        state: حالة المستخدم الحالية
-        message_id: معرف رسالة المستخدم (تبقى ظاهرة)
     """
     logger.info(
         "handle_name_step",
@@ -66,6 +60,7 @@ async def handle_name_step(
             },
         )
 
+        # ✅ استخدام bot_message_id من الحالة
         bot_message_id = state.get("bot_message_id")
 
         if bot_message_id:
@@ -124,22 +119,26 @@ async def handle_name_step(
     # 🍽️ SEND RESTAURANT NAME SCREEN
     # ==========================================
 
+    # ✅ استخدام bot_message_id من الحالة
     bot_message_id = state.get("bot_message_id")
 
-    if not bot_message_id:
-        logger.warning(
-            "bot_message_id_not_found_using_user_message_id",
-            extra={
-                "chat_id": chat_id,
-                "message_id": message_id,
-            },
+    if bot_message_id:
+        # ✅ تعديل رسالة البوت
+        restaurant_message_id = await send_restaurant_name(
+            chat_id=chat_id,
+            message_id=bot_message_id,
         )
-        bot_message_id = message_id
-
-    restaurant_message_id = await send_restaurant_name(
-        chat_id=chat_id,
-        message_id=bot_message_id,
-    )
+    else:
+        # ✅ إرسال رسالة جديدة إذا لم يوجد bot_message_id
+        response = await UIManager.send_new_message(
+            chat_id=chat_id,
+            text="🍽️ أدخل اسم المحل:",
+            reply_markup=await back_ui(),
+            store_message_id=True,
+        )
+        restaurant_message_id = None
+        if response and isinstance(response, dict):
+            restaurant_message_id = response.get("result", {}).get("message_id")
 
     if restaurant_message_id:
         await update_state_field(

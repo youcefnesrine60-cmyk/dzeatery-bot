@@ -1,10 +1,5 @@
 # ==============================================
-# 💬 MESSAGE HANDLER
-# المسؤول عن:
-# - /start
-# - الرجوع
-# - التحقق من CAPTCHA
-# - توجيه الرسائل حسب الـ State
+# 💬 MESSAGE HANDLER - VERSION PRO
 # ==============================================
 
 from app.core.logger import logger
@@ -29,10 +24,6 @@ async def handle_message(
     data: dict,
 ) -> None:
 
-    # ==========================================
-    # 📥 EXTRACT MESSAGE
-    # ==========================================
-
     message = data["message"]
     chat_id = message["chat"]["id"]
     message_id = message["message_id"]
@@ -51,18 +42,10 @@ async def handle_message(
     # ==========================================
 
     if await CaptchaManager.is_required(chat_id=chat_id):
-        logger.info(
-            "captcha_required",
-            extra={
-                "chat_id": chat_id,
-            },
-        )
-
         solved = await handle_captcha(
             chat_id=chat_id,
             text=text,
         )
-
         if not solved:
             return
 
@@ -78,7 +61,6 @@ async def handle_message(
             },
         )
 
-        # تنظيف الرسائل السابقة قبل إرسال القائمة الرئيسية
         await UIManager.cleanup_messages(chat_id=chat_id)
 
         await send_main_menu(
@@ -86,7 +68,6 @@ async def handle_message(
             message_id=None,
             cleanup=False,
         )
-
         return
 
     # ==========================================
@@ -103,10 +84,6 @@ async def handle_message(
 
         previous = await go_back(chat_id=chat_id)
 
-        # ======================================
-        # 🏠 RETURN TO MAIN MENU
-        # ======================================
-
         if previous is None:
             try:
                 await delete_state(chat_id=chat_id)
@@ -119,7 +96,6 @@ async def handle_message(
                     },
                 )
 
-            # تنظيف الرسائل السابقة
             await UIManager.cleanup_messages(chat_id=chat_id)
 
             await send_main_menu(
@@ -127,7 +103,6 @@ async def handle_message(
                 message_id=None,
                 cleanup=False,
             )
-
         return
 
     # ==========================================
@@ -135,10 +110,6 @@ async def handle_message(
     # ==========================================
 
     state = await get_state(chat_id=chat_id)
-
-    # ==========================================
-    # 🚫 NO ACTIVE STATE
-    # ==========================================
 
     if not state:
         logger.info(
@@ -150,10 +121,9 @@ async def handle_message(
         return
 
     # ==========================================
-    # 💾 STORE USER MESSAGE ID
+    # 💾 STORE USER MESSAGE ID (قبل التوجيه)
     # ==========================================
 
-    # ✅ تخزين معرف رسالة المستخدم في الحالة
     await append_to_state_list(
         chat_id=chat_id,
         list_key="message_ids",
@@ -170,7 +140,6 @@ async def handle_message(
 
     # ==========================================
     # 🚫 PREVENT MANUAL INPUT
-    # BUTTON ONLY STEPS
     # ==========================================
 
     if state.get("step") in (
@@ -196,7 +165,6 @@ async def handle_message(
             text="❌ الرجاء استعمال الأزرار فقط.",
             reply_markup=None,
         )
-
         return
 
     # ==========================================

@@ -6,22 +6,13 @@
 import re
 
 from app.core.logger import logger
-
 from app.helpers.state_helper import clear_user_state
 from app.helpers.ui_manager import UIManager
-
 from app.repositories.state_repo import set_state
-from app.repositories.user_repo import (
-    give_consent, 
-    has_consent
-)
-
+from app.repositories.user_repo import give_consent, has_consent
 from app.states.owner_states import OwnerStates
-
 from app.handlers.callbacks.customer.restaurant_list import show_restaurants
-
 from app.services.telegram import delete_message
-
 from app.views.texts import OWNER_NAME
 from app.views.ui import back_ui, consent_text, consent_ui
 
@@ -39,12 +30,6 @@ async def owner_callback(
 ) -> None:
     """
     معالجة اختيار "صاحب محل" من القائمة الرئيسية
-
-    Args:
-        chat_id: معرف المستخدم
-        message_id: معرف الرسالة
-        callback_data: بيانات الكولباك
-        match: تطابق النمط
     """
     logger.info(
         "owner_callback_triggered",
@@ -66,7 +51,7 @@ async def owner_callback(
             },
         )
 
-        # ✅ حذف الرسالة الحالية (القائمة الرئيسية)
+        # ✅ حذف القائمة الرئيسية
         await delete_message(
             chat_id=chat_id,
             message_id=message_id,
@@ -90,26 +75,28 @@ async def owner_callback(
 
     await clear_user_state(chat_id=chat_id)
 
-    # ✅ حذف الرسالة الحالية (القائمة الرئيسية)
+    # ✅ حذف القائمة الرئيسية فقط
     await delete_message(
         chat_id=chat_id,
         message_id=message_id,
     )
 
-    # ✅ تنظيف الرسائل المخزنة
+    # ✅ تنظيف الرسائل المخزنة (بدون حذف القائمة الرئيسية لأنها محذوفة بالفعل)
     await UIManager.cleanup_messages(chat_id=chat_id)
 
     # ==========================================
     # 🚀 START OWNER FLOW
     # ==========================================
 
+    # ✅ إنشاء حالة جديدة مع bot_message_id = None
+    # لأننا سنرسل رسالة جديدة ولا نعدل رسالة موجودة
     await set_state(
         chat_id=chat_id,
         state={
             "flow": "owner",
             "step": OwnerStates.NAME,
             "history": [],
-            "bot_message_id": message_id,
+            "bot_message_id": None,  # ← مهم: لا يوجد رسالة بوت سابقة
         },
     )
 
@@ -121,12 +108,30 @@ async def owner_callback(
     )
 
     # ✅ إرسال رسالة جديدة لإدخال الاسم
-    await UIManager.send_new_message(
+    response = await UIManager.send_new_message(
         chat_id=chat_id,
         text=OWNER_NAME,
         reply_markup=await back_ui(),
         store_message_id=True,
     )
+
+    # ✅ تحديث bot_message_id بالرسالة الجديدة
+    if response and isinstance(response, dict):
+        new_message_id = response.get("result", {}).get("message_id")
+        if new_message_id:
+            from app.helpers.state_helper import update_state_field
+            await update_state_field(
+                chat_id=chat_id,
+                key="bot_message_id",
+                value=new_message_id,
+            )
+            logger.info(
+                "bot_message_id_updated",
+                extra={
+                    "chat_id": chat_id,
+                    "bot_message_id": new_message_id,
+                },
+            )
 
 
 # ==============================================
@@ -142,24 +147,15 @@ async def consent_callback(
 ) -> None:
     """
     معالجة الموافقة على الشروط بطريقة محسنة
-
-    Args:
-        chat_id: معرف المستخدم
-        message_id: معرف الرسالة
-        callback_data: بيانات الكولباك
-        match: تطابق النمط
     """
     # تسجيل الموافقة
     await give_consent(chat_id=chat_id)
 
-    # ✅ حذف الرسالة الحالية (رسالة الموافقة)
-    await delete_message(
-        chat_id=chat_id,
-        message_id=message_id,
-    )
-
     # تنظيف الرسائل المخزنة
-    await UIManager.cleanup_messages(chat_id=chat_id)
+    await UIManager.cleanup_messages(
+        chat_id=chat_id,
+        preserve_message_id=message_id,
+    )
 
     if callback_data.endswith("owner"):
         logger.info(
@@ -172,26 +168,33 @@ async def consent_callback(
         # تنظيف الحالة السابقة
         await clear_user_state(chat_id=chat_id)
 
-        # إنشاء حالة جديدة
-        await set_state(
+        # ✅ حذف رسالة الموافقة
+        await delete_message(
             chat_id=chat_id,
-            state={
-                "flow": "owner",
-                "step": OwnerStates.NAME,
-                "history": [],
-                "bot_message_id": message_id,
-            },
+            message_id=message_id,
         )
 
         # ✅ إرسال رسالة جديدة لإدخال الاسم
-        await UIManager.send_new_message(
+        response = await UIManager.send_new_message(
             chat_id=chat_id,
             text=OWNER_NAME,
             reply_markup=await back_ui(),
             store_message_id=True,
         )
-        return
 
+        # ✅ تحديث bot_message_id
+        if response and isinstance(response, dict):
+            new_message_id = response.get("result", {}).get("message_id")
+            if new_message_id:
+                from app.helpers.state_helper import update_state_field
+                await update_state_field(
+                    chat_id=chat_id,
+                    key="bot_message_id",
+                    value=new_message_id,
+                )
+
+        return
+    
     # ==========================================
     # 👤 CUSTOMER CONSENT
     # ==========================================
@@ -203,7 +206,6 @@ async def consent_callback(
         },
     )
 
-    # عرض قائمة المطاعم
     await show_restaurants(
         chat_id=chat_id,
         message_id=message_id,
