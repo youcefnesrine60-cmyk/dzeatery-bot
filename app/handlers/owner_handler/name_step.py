@@ -32,13 +32,13 @@ async def handle_name_step(
     message_id: int,
 ) -> None:
     """
-    معالجة إدخال اسم المالك بطريقة محسنة
+    معالجة إدخال اسم المالك
 
     Args:
         chat_id: معرف المستخدم
         text: النص المدخل
         state: حالة المستخدم الحالية
-        message_id: معرف رسالة المستخدم (التي كتب فيها الاسم) - تبقى ظاهرة
+        message_id: معرف رسالة المستخدم (تبقى ظاهرة)
     """
     logger.info(
         "handle_name_step",
@@ -66,7 +66,6 @@ async def handle_name_step(
             },
         )
 
-        # ✅ الحصول على معرف رسالة البوت من الحالة
         bot_message_id = state.get("bot_message_id")
 
         if bot_message_id:
@@ -85,7 +84,7 @@ async def handle_name_step(
         return
 
     # ==========================================
-    # 💾 SAVE STATE (تحديث متعدد الحقول)
+    # 💾 SAVE STATE
     # ==========================================
 
     await update_state_fields(
@@ -125,7 +124,6 @@ async def handle_name_step(
     # 🍽️ SEND RESTAURANT NAME SCREEN
     # ==========================================
 
-    # ✅ استخدام bot_message_id من الحالة (رسالة البوت التي تطلب الاسم)
     bot_message_id = state.get("bot_message_id")
 
     if not bot_message_id:
@@ -138,13 +136,11 @@ async def handle_name_step(
         )
         bot_message_id = message_id
 
-    # ✅ إرسال رسالة "أدخل اسم المحل" (تعديل رسالة البوت)
     restaurant_message_id = await send_restaurant_name(
         chat_id=chat_id,
         message_id=bot_message_id,
     )
 
-    # حفظ معرف الرسالة الجديدة
     if restaurant_message_id:
         await update_state_field(
             chat_id=chat_id,

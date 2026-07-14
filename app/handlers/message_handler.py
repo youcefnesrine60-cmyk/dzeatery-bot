@@ -10,20 +10,13 @@
 from app.core.logger import logger
 from app.core.state_dispatcher import StateDispatcher
 from app.core.security.captcha_manager import CaptchaManager
-
 from app.handlers.captcha_handler import handle_captcha
-
 from app.helpers.ui_helpers import send_main_menu
 from app.helpers.navigation import go_back
+from app.helpers.state_helper import append_to_state_list
 from app.helpers.ui_manager import UIManager
-
-from app.repositories.state_repo import(
-    delete_state,
-    get_state
-) 
-
+from app.repositories.state_repo import delete_state, get_state
 from app.services.telegram import delete_message
-
 from app.states.owner_states import OwnerStates
 
 
@@ -90,8 +83,8 @@ async def handle_message(
 
         await send_main_menu(
             chat_id=chat_id,
-            message_id=None,  # إرسال رسالة جديدة
-            cleanup=False,    # لا ننظف مرة أخرى
+            message_id=None,
+            cleanup=False,
         )
 
         return
@@ -155,6 +148,25 @@ async def handle_message(
             },
         )
         return
+
+    # ==========================================
+    # 💾 STORE USER MESSAGE ID
+    # ==========================================
+
+    # ✅ تخزين معرف رسالة المستخدم في الحالة
+    await append_to_state_list(
+        chat_id=chat_id,
+        list_key="message_ids",
+        value=message_id,
+    )
+
+    logger.debug(
+        "user_message_id_stored",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id,
+        },
+    )
 
     # ==========================================
     # 🚫 PREVENT MANUAL INPUT

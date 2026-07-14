@@ -32,13 +32,13 @@ async def handle_restaurant_step(
     message_id: int,
 ) -> None:
     """
-    معالجة إدخال اسم المحل بطريقة محسنة
+    معالجة إدخال اسم المحل
 
     Args:
         chat_id: معرف المستخدم
         text: النص المدخل
         state: حالة المستخدم الحالية
-        message_id: معرف رسالة المستخدم (التي كتب فيها اسم المحل) - تبقى ظاهرة
+        message_id: معرف رسالة المستخدم (تبقى ظاهرة)
     """
     logger.info(
         "handle_restaurant_step",
@@ -66,7 +66,6 @@ async def handle_restaurant_step(
             },
         )
 
-        # ✅ الحصول على معرف رسالة البوت من الحالة
         restaurant_message_id = state.get("restaurant_message_id")
 
         if restaurant_message_id:
@@ -85,7 +84,7 @@ async def handle_restaurant_step(
         return
 
     # ==========================================
-    # 💾 SAVE STATE (تحديث متعدد الحقول)
+    # 💾 SAVE STATE
     # ==========================================
 
     await update_state_fields(
@@ -125,7 +124,6 @@ async def handle_restaurant_step(
     # 🗺️ SEND WILAYA NAME SCREEN
     # ==========================================
 
-    # ✅ استخدام restaurant_message_id من الحالة (رسالة البوت التي تطلب اسم المحل)
     restaurant_message_id = state.get("restaurant_message_id")
 
     if not restaurant_message_id:
@@ -138,13 +136,11 @@ async def handle_restaurant_step(
         )
         restaurant_message_id = message_id
 
-    # ✅ إرسال رسالة "أدخل الولاية" (تعديل رسالة البوت)
     wilaya_message_id = await send_wilaya_name(
         chat_id=chat_id,
         message_id=restaurant_message_id,
     )
 
-    # حفظ معرف الرسالة الجديدة
     if wilaya_message_id:
         await update_state_field(
             chat_id=chat_id,
