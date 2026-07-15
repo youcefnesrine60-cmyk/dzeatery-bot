@@ -5,11 +5,19 @@
 import re
 
 from app.core.logger import logger
+
 from app.helpers.navigation import go_back
-from app.helpers.state_helper import clear_user_state, get_user_state, update_state_field
+from app.helpers.state_helper import (
+    clear_user_state, 
+    get_user_state, 
+    update_state_field
+)
 from app.helpers.ui_manager import UIManager
+
 from app.services.telegram import delete_message
+
 from app.states.owner_states import OwnerStates
+
 from app.views.texts import (
     OWNER_NAME,
     PHONE_NUMBER,
@@ -43,6 +51,8 @@ async def _delete_step_messages(
 ) -> int:
     """
     حذف رسائل خطوة معينة (رسالة المستخدم + رسالة البوت)
+
+    ملاحظة: رسالة المستخدم تحذف فقط إذا كانت موجودة (أي إذا كان المستخدم قد أرسلها بالفعل)
 
     Args:
         chat_id: معرف المحادثة
@@ -81,7 +91,7 @@ async def _delete_step_messages(
         bot_message_key = "type_message_id"
 
     # ==========================================
-    # 🗑️ حذف رسالة المستخدم
+    # 🗑️ حذف رسالة المستخدم (إذا كانت موجودة)
     # ==========================================
 
     if user_message_key:
@@ -213,6 +223,10 @@ async def back_step_callback(
 ) -> None:
     """
     العودة إلى الخطوة السابقة مع حذف رسائل الخطوتين
+
+    المنطق:
+    - الخطوة الحالية: يوجد فقط رسالة البوت (تحذف)
+    - الخطوة السابقة: يوجد رسالة المستخدم + رسالة البوت (تحذف كلتاهما)
     """
     try:
         # ==========================================
@@ -287,7 +301,7 @@ async def back_step_callback(
             return
 
         # ==========================================
-        # 🧹 حذف رسائل الخطوة الحالية
+        # 🧹 حذف رسائل الخطوة الحالية (البوت فقط)
         # ==========================================
 
         deleted_current = await _delete_step_messages(
@@ -311,7 +325,7 @@ async def back_step_callback(
         )
 
         # ==========================================
-        # 🧹 حذف رسائل الخطوة السابقة
+        # 🧹 حذف رسائل الخطوة السابقة (المستخدم + البوت)
         # ==========================================
 
         deleted_previous = await _delete_step_messages(
@@ -375,7 +389,6 @@ async def back_step_callback(
                 store_message_id=True,
             )
 
-            # حفظ معرف رسالة البوت الجديدة
             if response and isinstance(response, dict):
                 new_message_id = response.get("result", {}).get("message_id")
                 if new_message_id:
@@ -427,7 +440,6 @@ async def back_step_callback(
                 },
             )
 
-            # إرسال رسالة جديدة للخطوة السابقة
             response = await UIManager.send_new_message(
                 chat_id=chat_id,
                 text=STEPS_TEXT[previous_step],
@@ -435,7 +447,6 @@ async def back_step_callback(
                 store_message_id=True,
             )
 
-            # حفظ معرف رسالة البوت الجديدة
             if response and isinstance(response, dict):
                 new_message_id = response.get("result", {}).get("message_id")
                 if new_message_id:

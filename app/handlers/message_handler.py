@@ -5,12 +5,21 @@
 from app.core.logger import logger
 from app.core.state_dispatcher import StateDispatcher
 from app.core.security.captcha_manager import CaptchaManager
+
 from app.handlers.captcha_handler import handle_captcha
+
 from app.helpers.ui_helpers import send_main_menu
 from app.helpers.navigation import go_back
-from app.helpers.state_helper import append_to_state_list, get_user_state
+from app.helpers.state_helper import (
+    append_to_state_list, 
+    update_state_field
+)
 from app.helpers.ui_manager import UIManager
-from app.repositories.state_repo import delete_state, get_state
+
+from app.repositories.state_repo import (
+    delete_state, 
+    get_state
+)
 from app.services.telegram import delete_message
 from app.states.owner_states import OwnerStates
 
@@ -53,7 +62,6 @@ async def handle_message(
     # 💾 STORE USER MESSAGE ID (دائماً)
     # ==========================================
 
-    # ✅ تخزين رسالة المستخدم في message_ids دائماً
     await append_to_state_list(
         chat_id=chat_id,
         list_key="message_ids",
@@ -167,6 +175,58 @@ async def handle_message(
             reply_markup=None,
         )
         return
+
+    # ==========================================
+    # 📝 تخزين معرف رسالة المستخدم حسب الخطوة
+    # ==========================================
+
+    current_step = state.get("step")
+
+    if current_step == OwnerStates.NAME:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_name",
+            value=message_id,
+        )
+    elif current_step == OwnerStates.RESTAURANT:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_restaurant",
+            value=message_id,
+        )
+    elif current_step == OwnerStates.WILAYA:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_wilaya",
+            value=message_id,
+        )
+    elif current_step == OwnerStates.PHONE:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_phone",
+            value=message_id,
+        )
+    elif current_step == OwnerStates.LOCATION:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_location",
+            value=message_id,
+        )
+    elif current_step == OwnerStates.TYPE:
+        await update_state_field(
+            chat_id=chat_id,
+            key="user_message_id_type",
+            value=message_id,
+        )
+
+    logger.debug(
+        "user_message_id_stored_by_step",
+        extra={
+            "chat_id": chat_id,
+            "step": current_step,
+            "message_id": message_id,
+        },
+    )
 
     # ==========================================
     # 🚀 DISPATCH STATE
