@@ -177,7 +177,7 @@ async def handle_message(
         return
 
     # ==========================================
-    # 📝 تخزين معرف رسالة المستخدم حسب الخطوة
+    # 📝 تخزين معرف رسالة المستخدم حسب الخطوة (قبل التوجيه)
     # ==========================================
 
     current_step = state.get("step")
@@ -188,17 +188,38 @@ async def handle_message(
             key="user_message_id_name",
             value=message_id,
         )
+        logger.debug(
+            "user_message_id_name_stored",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
     elif current_step == OwnerStates.RESTAURANT:
         await update_state_field(
             chat_id=chat_id,
             key="user_message_id_restaurant",
             value=message_id,
         )
+        logger.debug(
+            "user_message_id_restaurant_stored",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
     elif current_step == OwnerStates.WILAYA:
         await update_state_field(
             chat_id=chat_id,
             key="user_message_id_wilaya",
             value=message_id,
+        )
+        logger.debug(
+            "user_message_id_wilaya_stored",
+            extra={
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
         )
     elif current_step == OwnerStates.PHONE:
         await update_state_field(
@@ -218,15 +239,6 @@ async def handle_message(
             key="user_message_id_type",
             value=message_id,
         )
-
-    logger.debug(
-        "user_message_id_stored_by_step",
-        extra={
-            "chat_id": chat_id,
-            "step": current_step,
-            "message_id": message_id,
-        },
-    )
 
     # ==========================================
     # 🚀 DISPATCH STATE
