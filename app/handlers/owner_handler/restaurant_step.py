@@ -49,6 +49,24 @@ async def handle_restaurant_step(
     )
 
     # ==========================================
+    # 💾 تخزين معرف رسالة المستخدم (لحذفها عند الرجوع)
+    # ==========================================
+
+    await update_state_field(
+        chat_id=chat_id,
+        key="user_message_id_restaurant",
+        value=message_id,
+    )
+
+    logger.debug(
+        "user_message_id_restaurant_stored",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id,
+        },
+    )
+
+    # ==========================================
     # 🧼 SANITIZE INPUT
     # ==========================================
 
