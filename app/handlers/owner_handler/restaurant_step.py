@@ -58,7 +58,7 @@ async def handle_restaurant_step(
         value=message_id,
     )
 
-    logger.debug(
+    logger.info(
         "user_message_id_restaurant_stored",
         extra={
             "chat_id": chat_id,
