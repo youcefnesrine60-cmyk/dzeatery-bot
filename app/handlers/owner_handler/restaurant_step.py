@@ -52,6 +52,14 @@ async def handle_restaurant_step(
     # 💾 تخزين معرف رسالة المستخدم (لحذفها عند الرجوع)
     # ==========================================
 
+    logger.info(
+        "before_storing_user_message_id_restaurant",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id,
+        },
+    )
+
     await update_state_field(
         chat_id=chat_id,
         key="user_message_id_restaurant",
@@ -59,7 +67,7 @@ async def handle_restaurant_step(
     )
 
     logger.info(
-        "user_message_id_restaurant_stored",
+        "after_storing_user_message_id_restaurant",
         extra={
             "chat_id": chat_id,
             "message_id": message_id,
