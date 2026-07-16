@@ -310,8 +310,10 @@ async def back_step_callback(
             state=state,
         )
 
-        #################################################
-        #################################################
+        await _cleanup_step_from_state(
+            chat_id=chat_id,
+            step=current_step,
+        )
 
         logger.info(
             "current_step_messages_deleted",
@@ -325,6 +327,9 @@ async def back_step_callback(
         # ==========================================
         # 🧹 حذف رسائل الخطوة السابقة (المستخدم + البوت)
         # ==========================================
+
+        # ✅ جلب الحالة مرة أخرى
+        state = await get_user_state(chat_id=chat_id)
 
         logger.info(
             "state_content_before_delete",
