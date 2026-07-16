@@ -310,10 +310,8 @@ async def back_step_callback(
             state=state,
         )
 
-        await _cleanup_step_from_state(
-            chat_id=chat_id,
-            step=current_step,
-        )
+        #################################################
+        #################################################
 
         logger.info(
             "current_step_messages_deleted",
