@@ -7,7 +7,10 @@ from typing import Any
 from app.core.logger import logger
 from app.helpers.ui_helpers import send_restaurant_name
 from app.helpers.safe_sanitize import safe_sanitize
-from app.helpers.state_helper import update_state_field, update_state_fields
+from app.helpers.state_helper import (
+    update_state_field, 
+    update_state_fields
+)
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 from app.states.owner_states import OwnerStates

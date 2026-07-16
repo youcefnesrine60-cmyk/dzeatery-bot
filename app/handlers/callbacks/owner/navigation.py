@@ -328,6 +328,16 @@ async def back_step_callback(
         # 🧹 حذف رسائل الخطوة السابقة (المستخدم + البوت)
         # ==========================================
 
+        logger.info(
+            "state_content_before_delete",
+            extra={
+                "chat_id": chat_id,
+                "step": previous_step,
+                "user_message_id_restaurant": state.get("user_message_id_restaurant"),
+                "restaurant_message_id": state.get("restaurant_message_id"),
+            },
+        )
+
         deleted_previous = await _delete_step_messages(
             chat_id=chat_id,
             step=previous_step,
