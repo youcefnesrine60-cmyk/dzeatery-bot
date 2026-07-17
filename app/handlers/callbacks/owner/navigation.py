@@ -310,6 +310,15 @@ async def back_step_callback(
             state=state,
         )
 
+        logger.info(
+            "state_before_cleanup",
+            extra={
+                "chat_id": chat_id,
+                "user_message_id_restaurant": state.get("user_message_id_restaurant"),
+                "restaurant_message_id": state.get("restaurant_message_id"),
+            },
+        )
+
         await _cleanup_step_from_state(
             chat_id=chat_id,
             step=current_step,
