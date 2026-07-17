@@ -233,6 +233,13 @@ async def back_step_callback(
         # 📥 جلب الحالة
         # ==========================================
 
+        logger.info(
+            "back_step_state_before_get",
+            extra={
+                "chat_id": chat_id,
+            },
+        )
+        
         state = await get_user_state(chat_id=chat_id)
 
         if not state:

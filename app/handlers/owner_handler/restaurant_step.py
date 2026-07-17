@@ -7,7 +7,11 @@ from typing import Any
 from app.core.logger import logger
 from app.helpers.ui_helpers import send_wilaya_name
 from app.helpers.safe_sanitize import safe_sanitize
-from app.helpers.state_helper import update_state_field, update_state_fields
+from app.helpers.state_helper import (
+    update_state_field,
+    get_user_state,
+    update_state_fields
+)
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 from app.states.owner_states import OwnerStates
@@ -60,6 +64,7 @@ async def handle_restaurant_step(
         },
     )
 
+    #يخزن user_message_id_restaurant في Redis
     await update_state_field(
         chat_id=chat_id,
         key="user_message_id_restaurant",
@@ -71,6 +76,23 @@ async def handle_restaurant_step(
         extra={
             "chat_id": chat_id,
             "message_id": message_id,
+        },
+    )
+
+    # بعد after_storing_user_message_id_restaurant
+    # ==========================================
+    # 🔍 التحقق من التخزين في Redis
+    # ==========================================
+
+    state_after = await get_user_state(chat_id=chat_id)
+    logger.info(
+        "verify_user_message_id_restaurant_stored",
+        extra={
+            "chat_id": chat_id,
+            "user_message_id_restaurant": state_after.get("user_message_id_restaurant") if state_after else None,
+            "restaurant_message_id": state_after.get("restaurant_message_id") if state_after else None,
+            "step": state_after.get("step") if state_after else None,
+            "all_keys": list(state_after.keys()) if state_after else [],
         },
     )
 
