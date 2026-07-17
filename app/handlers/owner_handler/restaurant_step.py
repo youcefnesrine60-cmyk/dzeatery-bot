@@ -141,12 +141,6 @@ async def handle_restaurant_step(
         value=clean,
     )
 
-    await update_state_field(
-        chat_id=chat_id,
-        key="step",
-        value=OwnerStates.WILAYA,
-    )
-
     logger.info(
         "restaurant_name_saved",
         extra={
@@ -164,7 +158,7 @@ async def handle_restaurant_step(
 
     if not await transition_to(
         chat_id=chat_id,
-        state=state, # ← الآن state يحتوي على user_message_id_restaurant
+        state=state, 
         next_state=OwnerStates.WILAYA,
     ):
         logger.error(
