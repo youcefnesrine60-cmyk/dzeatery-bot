@@ -239,8 +239,19 @@ async def back_step_callback(
                 "chat_id": chat_id,
             },
         )
-        
+
         state = await get_user_state(chat_id=chat_id)
+
+        logger.info(
+            "back_step_initial_state",
+            extra={
+                "chat_id": chat_id,
+                "user_message_id_restaurant": state.get("user_message_id_restaurant") if state else None,
+                "restaurant_message_id": state.get("restaurant_message_id") if state else None,
+                "step": state.get("step") if state else None,
+                "all_keys": list(state.keys()) if state else [],
+            },
+        )
 
         if not state:
             logger.warning(
