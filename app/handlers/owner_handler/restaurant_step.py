@@ -135,12 +135,16 @@ async def handle_restaurant_step(
     # 💾 SAVE STATE
     # ==========================================
 
-    await update_state_fields(
+    await update_state_field(
         chat_id=chat_id,
-        fields={
-            "restaurant": clean,
-            "step": OwnerStates.WILAYA,
-        },
+        key="restaurant",
+        value=clean,
+    )
+
+    await update_state_field(
+        chat_id=chat_id,
+        key="step",
+        value=OwnerStates.WILAYA,
     )
 
     logger.info(
