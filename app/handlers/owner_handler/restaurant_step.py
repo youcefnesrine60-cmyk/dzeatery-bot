@@ -159,9 +159,12 @@ async def handle_restaurant_step(
     # 🔄 TRANSITION TO WILAYA STEP
     # ==========================================
 
+    # ✅ جلب الحالة المحدثة من Redis
+    state = await get_user_state(chat_id=chat_id)
+
     if not await transition_to(
         chat_id=chat_id,
-        state=state,
+        state=state, # ← الآن state يحتوي على user_message_id_restaurant
         next_state=OwnerStates.WILAYA,
     ):
         logger.error(
