@@ -5,15 +5,18 @@
 from typing import Any
 
 from app.core.logger import logger
+
 from app.helpers.ui_helpers import send_restaurant_name
 from app.helpers.safe_sanitize import safe_sanitize
 from app.helpers.state_helper import (
-    update_state_field, 
-    update_state_fields
+    get_user_state,
+    update_state_field
 )
 from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
+
 from app.states.owner_states import OwnerStates
+
 from app.views.ui import back_ui
 
 # ==============================================
@@ -79,6 +82,10 @@ async def handle_name_step(
         field="owner",
     )
 
+    # ==========================================
+    # 🚫 INVALID INPUT
+    # ==========================================
+
     if clean is None:
         logger.warning(
             "invalid_owner_name",
@@ -108,12 +115,10 @@ async def handle_name_step(
     # 💾 SAVE STATE
     # ==========================================
 
-    await update_state_fields(
+    await update_state_field(
         chat_id=chat_id,
-        fields={
-            "owner": clean,
-            "step": OwnerStates.RESTAURANT,
-        },
+        key="owner",
+        value=clean,
     )
 
     logger.info(
@@ -127,6 +132,9 @@ async def handle_name_step(
     # ==========================================
     # 🔄 TRANSITION TO RESTAURANT STEP
     # ==========================================
+
+    # ✅ جلب الحالة المحدثة من Redis
+    state = await get_user_state(chat_id=chat_id)
 
     if not await transition_to(
         chat_id=chat_id,
