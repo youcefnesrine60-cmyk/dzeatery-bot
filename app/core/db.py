@@ -1,16 +1,21 @@
 # ==============================================
-# 🐘 POSTGRESQL DATABASE
-# Psycopg3 (Async) + FastAPI
+# 🐘 PostgreSQL - Psycopg3 (Async)
 # Production Ready
 # ==============================================
 
 import os
 import asyncio
+from contextlib import asynccontextmanager
+from typing import (
+    Any, 
+    Dict, 
+    List, 
+    Optional
+)
 
 from dotenv import load_dotenv
-
-from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from app.core.logger import logger
 
@@ -24,25 +29,30 @@ load_dotenv()
 # 🌍 DATABASE URL
 # ==============================================
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL: str = os.getenv("DATABASE_SYNC_URL", "")
 
 # ==============================================
 # 🧩 TYPES
 # ==============================================
 
 DatabasePool = AsyncConnectionPool
+RowType = Dict[str, Any]
+RowsType = List[RowType]
 
 # ==============================================
 # 🔌 GLOBAL POOL
 # ==============================================
 
-db_pool: DatabasePool | None = None
+db_pool: Optional[DatabasePool] = None
 
 # ==============================================
 # 🚀 INITIALIZE DATABASE POOL
 # ==============================================
 
 async def init_db() -> None:
+    """
+    تهيئة تجمع اتصالات قاعدة البيانات
+    """
     global db_pool
 
     if db_pool is not None:
@@ -53,10 +63,10 @@ async def init_db() -> None:
             conninfo=DATABASE_URL,
             min_size=2,
             max_size=10,
-            timeout=120,  # ✅ زيادة المهلة
+            timeout=120,
             kwargs={
                 "row_factory": dict_row,
-                "connect_timeout": 30,  # ✅ إضافة مهلة الاتصال
+                "connect_timeout": 30,
                 "keepalives": 1,
                 "keepalives_idle": 10,
                 "keepalives_interval": 5,
@@ -80,6 +90,12 @@ async def init_db() -> None:
 # ==============================================
 
 async def get_pool() -> DatabasePool:
+    """
+    الحصول على تجمع الاتصالات
+    
+    Returns:
+        DatabasePool: تجمع الاتصالات
+    """
     global db_pool
 
     if db_pool is None:
@@ -88,32 +104,36 @@ async def get_pool() -> DatabasePool:
     return db_pool
 
 # ==============================================
-# 📥 FETCH ONE (مع إعادة المحاولة)
+# 📥 FETCH ONE
 # ==============================================
 
-async def fetchrow(query: str, *args, retries: int = 3):
+async def fetchrow(
+    query: str,
+    *args: Any,
+    retries: int = 3,
+) -> Optional[RowType]:
     """
-    تنفيذ استعلام وإعادة صف واحد مع إعادة المحاولة عند فشل الاتصال
+    تنفيذ استعلام وإعادة صف واحد مع إعادة المحاولة
     
     Args:
         query: استعلام SQL
         *args: معاملات الاستعلام
-        retries: عدد محاولات إعادة المحاولة (افتراضي 3)
+        retries: عدد محاولات إعادة المحاولة
         
     Returns:
         الصف المسترجع أو None
     """
-    last_error = None
-    
+    last_error: Optional[Exception] = None
+
     for attempt in range(retries):
         try:
             pool = await get_pool()
-            
+
             async with pool.connection() as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
                     await cur.execute(query, args)
                     return await cur.fetchone()
-                    
+
         except Exception as e:
             last_error = e
             logger.warning(
@@ -121,20 +141,14 @@ async def fetchrow(query: str, *args, retries: int = 3):
                 extra={
                     "error": str(e),
                     "attempt": attempt + 1,
-                    "query": query[:100],  # تسجيل جزء من الاستعلام فقط
+                    "query": query[:100],
                 },
             )
-            
-            # إذا كانت هذه ليست المحاولة الأخيرة، انتظر قبل إعادة المحاولة
+
             if attempt < retries - 1:
-                wait_time = 2 ** attempt  # 1, 2, 4 ثواني
-                logger.info(
-                    f"fetchrow_retry_in_{wait_time}s",
-                    extra={"attempt": attempt + 1, "wait_time": wait_time},
-                )
+                wait_time = 2**attempt
                 await asyncio.sleep(wait_time)
-    
-    # إذا فشلت جميع المحاولات، أعد رفع الخطأ
+
     logger.error(
         "fetchrow_all_attempts_failed",
         extra={
@@ -143,35 +157,39 @@ async def fetchrow(query: str, *args, retries: int = 3):
             "last_error": str(last_error),
         },
     )
-    raise last_error
+    raise last_error  # type: ignore
 
 # ==============================================
-# 📥 FETCH MANY (مع إعادة المحاولة)
+# 📥 FETCH MANY
 # ==============================================
 
-async def fetch(query: str, *args, retries: int = 3):
+async def fetch(
+    query: str,
+    *args: Any,
+    retries: int = 3,
+) -> RowsType:
     """
-    تنفيذ استعلام وإعادة عدة صفوف مع إعادة المحاولة عند فشل الاتصال
+    تنفيذ استعلام وإعادة عدة صفوف مع إعادة المحاولة
     
     Args:
         query: استعلام SQL
         *args: معاملات الاستعلام
-        retries: عدد محاولات إعادة المحاولة (افتراضي 3)
+        retries: عدد محاولات إعادة المحاولة
         
     Returns:
         قائمة الصفوف المسترجعة
     """
-    last_error = None
-    
+    last_error: Optional[Exception] = None
+
     for attempt in range(retries):
         try:
             pool = await get_pool()
-            
+
             async with pool.connection() as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
                     await cur.execute(query, args)
                     return await cur.fetchall()
-                    
+
         except Exception as e:
             last_error = e
             logger.warning(
@@ -182,11 +200,11 @@ async def fetch(query: str, *args, retries: int = 3):
                     "query": query[:100],
                 },
             )
-            
+
             if attempt < retries - 1:
-                wait_time = 2 ** attempt
+                wait_time = 2**attempt
                 await asyncio.sleep(wait_time)
-    
+
     logger.error(
         "fetch_all_attempts_failed",
         extra={
@@ -195,35 +213,39 @@ async def fetch(query: str, *args, retries: int = 3):
             "last_error": str(last_error),
         },
     )
-    raise last_error
+    raise last_error  # type: ignore
 
 # ==============================================
-# ✏️ EXECUTE (مع إعادة المحاولة)
+# ✏️ EXECUTE
 # ==============================================
 
-async def execute(query: str, *args, retries: int = 3):
+async def execute(
+    query: str,
+    *args: Any,
+    retries: int = 3,
+) -> Optional[str]:
     """
-    تنفيذ استعلام SQL مع إعادة المحاولة عند فشل الاتصال
+    تنفيذ استعلام SQL مع إعادة المحاولة
     
     Args:
         query: استعلام SQL
         *args: معاملات الاستعلام
-        retries: عدد محاولات إعادة المحاولة (افتراضي 3)
+        retries: عدد محاولات إعادة المحاولة
         
     Returns:
         رسالة حالة التنفيذ
     """
-    last_error = None
-    
+    last_error: Optional[Exception] = None
+
     for attempt in range(retries):
         try:
             pool = await get_pool()
-            
+
             async with pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(query, args)
                     return cur.statusmessage
-                    
+
         except Exception as e:
             last_error = e
             logger.warning(
@@ -234,11 +256,11 @@ async def execute(query: str, *args, retries: int = 3):
                     "query": query[:100],
                 },
             )
-            
+
             if attempt < retries - 1:
-                wait_time = 2 ** attempt
+                wait_time = 2**attempt
                 await asyncio.sleep(wait_time)
-    
+
     logger.error(
         "execute_all_attempts_failed",
         extra={
@@ -247,36 +269,40 @@ async def execute(query: str, *args, retries: int = 3):
             "last_error": str(last_error),
         },
     )
-    raise last_error
+    raise last_error  # type: ignore
 
 # ==============================================
-# ➕ INSERT RETURNING ID (مع إعادة المحاولة)
+# ➕ INSERT RETURNING ID
 # ==============================================
 
-async def insert_returning_id(query: str, *args, retries: int = 3) -> int:
+async def insert_returning_id(
+    query: str,
+    *args: Any,
+    retries: int = 3,
+) -> int:
     """
-    إدراج صف وإرجاع المعرف مع إعادة المحاولة عند فشل الاتصال
+    إدراج صف وإرجاع المعرف مع إعادة المحاولة
     
     Args:
         query: استعلام SQL (يجب أن يحتوي على RETURNING id)
         *args: معاملات الاستعلام
-        retries: عدد محاولات إعادة المحاولة (افتراضي 3)
+        retries: عدد محاولات إعادة المحاولة
         
     Returns:
         المعرف المُدرج
     """
-    last_error = None
-    
+    last_error: Optional[Exception] = None
+
     for attempt in range(retries):
         try:
             pool = await get_pool()
-            
+
             async with pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(query, args)
                     value = await cur.fetchone()
-                    return int(value[0])
-                    
+                    return int(value[0])  # type: ignore
+
         except Exception as e:
             last_error = e
             logger.warning(
@@ -287,11 +313,11 @@ async def insert_returning_id(query: str, *args, retries: int = 3) -> int:
                     "query": query[:100],
                 },
             )
-            
+
             if attempt < retries - 1:
-                wait_time = 2 ** attempt
+                wait_time = 2**attempt
                 await asyncio.sleep(wait_time)
-    
+
     logger.error(
         "insert_returning_id_all_attempts_failed",
         extra={
@@ -300,16 +326,20 @@ async def insert_returning_id(query: str, *args, retries: int = 3) -> int:
             "last_error": str(last_error),
         },
     )
-    raise last_error
+    raise last_error  # type: ignore
 
 # ==============================================
 # 🔄 TRANSACTION CONTEXT
 # ==============================================
 
-from contextlib import asynccontextmanager
-
 @asynccontextmanager
 async def transaction():
+    """
+    سياق تنفيذ المعاملات (Transaction)
+    
+    Yields:
+        AsyncConnection: اتصال قاعدة البيانات
+    """
     pool = await get_pool()
 
     async with pool.connection() as conn:
@@ -321,6 +351,9 @@ async def transaction():
 # ==============================================
 
 async def close_db() -> None:
+    """
+    إغلاق تجمع اتصالات قاعدة البيانات
+    """
     global db_pool
 
     if db_pool is None:

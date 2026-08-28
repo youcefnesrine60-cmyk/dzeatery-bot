@@ -1,240 +1,514 @@
 # ==============================================
-# 🍽️ RESTAURANT REPOSITORY
-# Async Psycopg3 Version
+# 🏪 RESTAURANT REPOSITORY
+# عمليات قاعدة البيانات للمطاعم
+# Repository ---> SQLAlchemy
 # ==============================================
 
-from app.core.db import (
-    fetch, 
-    fetchrow, 
-    insert_returning_id
+from typing import (
+    List,
+    Optional,
 )
 
+from sqlalchemy import (
+    or_,
+    select,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.core.logger import logger
+from app.models.restaurant import Restaurant
+from app.repositories.base import BaseRepository
 
 # ==============================================
 # 🧩 TYPES
 # ==============================================
 
-Restaurant = dict[str, str | int | float | None]
+RestaurantList = List[Restaurant]
 
 # ==============================================
-# ➕ CREATE RESTAURANT
+# 🏪 RESTAURANT REPOSITORY
 # ==============================================
 
-async def create_restaurant(
-    *,
-    owner_id: int,
-    name: str,
-    restaurant_type: str,
-    phone: str,
-    wilaya: str,
-    lat: float,
-    lng: float,
-) -> int:
 
-    restaurant_id = await insert_returning_id(
+class RestaurantRepository(BaseRepository[Restaurant, dict, dict]):
+    """
+    مستودع المطاعم - يوفر عمليات خاصة بالمطاعم.
+    
+    مسؤول عن:
+        - عمليات CRUD الأساسية للمطاعم
+        - البحث والتصفية حسب المالك والولاية
+        - البحث النصي
+        - جلب المطاعم مع العلاقات
+    
+    Attributes:
+        session: جلسة قاعدة البيانات غير المتزامنة
+        model: نموذج Restaurant
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+    ) -> None:
         """
-        INSERT INTO restaurants (
-            owner_id,
-            name,
-            type,
-            phone,
-            wilaya,
-            lat,
-            lng
+        تهيئة مستودع المطاعم.
+        
+        Args:
+            session: جلسة قاعدة البيانات غير المتزامنة
+        """
+        super().__init__(Restaurant, session)
+
+    # ==========================================
+    # 📖 QUERIES
+    # ==========================================
+
+    # ==============================================
+    # GET BY OWNER ID
+    # ==============================================
+
+    async def get_by_owner_id(
+        self,
+        *,
+        owner_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        include_inactive: bool = False,
+    ) -> RestaurantList:
+        """
+        الحصول على مطاعم المالك.
+        
+        Args:
+            owner_id: معرف المالك
+            skip: عدد السجلات للتخطي
+            limit: الحد الأقصى للسجلات
+            include_inactive: تضمين المطاعم غير النشطة
+            
+        Returns:
+            قائمة المطاعم
+        """
+        try:
+            query = select(self.model).where(
+                self.model.owner_id == owner_id,
+            )
+
+            if not include_inactive:
+                query = query.where(self.model.is_active == True)
+
+            query = query.offset(skip).limit(limit)
+
+            result = await self.session.execute(query)
+
+            return result.scalars().all()
+
+        except Exception as e:
+            logger.exception(
+                "restaurant_repo_get_by_owner_failed",
+                extra={
+                    "owner_id": owner_id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==============================================
+    # GET BY WILAYA
+    # ==============================================
+
+    async def get_by_wilaya(
+        self,
+        *,
+        wilaya: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> RestaurantList:
+        """
+        الحصول على مطاعم حسب الولاية.
+        
+        Args:
+            wilaya: اسم الولاية
+            skip: عدد السجلات للتخطي
+            limit: الحد الأقصى للسجلات
+            
+        Returns:
+            قائمة المطاعم
+        """
+        try:
+            query = (
+                select(self.model)
+                .where(self.model.wilaya == wilaya)
+                .where(self.model.is_active == True)
+                .offset(skip)
+                .limit(limit)
+            )
+
+            result = await self.session.execute(query)
+
+            return result.scalars().all()
+
+        except Exception as e:
+            logger.exception(
+                "restaurant_repo_get_by_wilaya_failed",
+                extra={
+                    "wilaya": wilaya,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==============================================
+    # SEARCH
+    # ==============================================
+
+    async def search(
+        self,
+        *,
+        query: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> RestaurantList:
+        """
+        البحث عن مطاعم.
+        
+        Args:
+            query: نص البحث
+            skip: عدد السجلات للتخطي
+            limit: الحد الأقصى للسجلات
+            
+        Returns:
+            قائمة المطاعم
+        """
+        try:
+            stmt = (
+                select(self.model)
+                .where(
+                    or_(
+                        self.model.name.ilike(f"%{query}%"),
+                        self.model.type.ilike(f"%{query}%"),
+                        self.model.wilaya.ilike(f"%{query}%"),
+                    ),
+                )
+                .where(self.model.is_active == True)
+                .offset(skip)
+                .limit(limit)
+            )
+
+            result = await self.session.execute(stmt)
+
+            return result.scalars().all()
+
+        except Exception as e:
+            logger.exception(
+                "restaurant_repo_search_failed",
+                extra={
+                    "query": query,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==============================================
+    # GET WITH RELATIONS
+    # ==============================================
+
+    async def get_with_relations(
+        self,
+        *,
+        restaurant_id: int,
+    ) -> Optional[Restaurant]:
+        """
+        الحصول على مطعم مع جميع علاقاته.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            
+        Returns:
+            المطعم مع العلاقات أو None
+        """
+        try:
+            query = (
+                select(self.model)
+                .where(self.model.id == restaurant_id)
+                .options(
+                    selectinload(self.model.owner),
+                    selectinload(self.model.branches),
+                    selectinload(self.model.categories),
+                    selectinload(self.model.products),
+                    selectinload(self.model.subscriptions),
+                    selectinload(self.model.metrics),
+                    selectinload(self.model.agents),
+                )
+            )
+
+            result = await self.session.execute(query)
+
+            return result.scalar_one_or_none()
+
+        except Exception as e:
+            logger.exception(
+                "restaurant_repo_get_with_relations_failed",
+                extra={
+                    "restaurant_id": restaurant_id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==========================================
+    # ✏️ UPDATES
+    # ==========================================
+
+    # ==============================================
+    # UPDATE STATUS
+    # ==============================================
+
+    async def update_status(
+        self,
+        *,
+        restaurant_id: int,
+        is_active: bool,
+    ) -> Optional[Restaurant]:
+        """
+        تحديث حالة المطعم.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            is_active: الحالة الجديدة
+            
+        Returns:
+            المطعم المُحدّث أو None
+        """
+        return await self.update(
+            restaurant_id=restaurant_id,
+            data={"is_active": is_active},
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        owner_id,
-        name,
-        restaurant_type,
-        phone,
-        wilaya,
-        lat,
-        lng,
-    )
 
-    logger.info(
-        "restaurant_created",
-        extra={
-            "restaurant_id": restaurant_id,
-            "owner_id": owner_id,
-            "restaurant_name": name,
-        },
-    )
+    # ==========================================
+    # 📊 STATISTICS
+    # ==========================================
 
-    return restaurant_id
+    # ==============================================
+    # COUNT BY OWNER
+    # ==============================================
 
-
-# ==============================================
-# 🔍 BASE SELECT
-# ==============================================
-
-_RESTAURANT_SELECT = """
-SELECT
-    id,
-    owner_id,
-    name,
-    type,
-    phone,
-    wilaya,
-    lat,
-    lng
-FROM restaurants
-"""
-
-
-def _row_to_dict(row) -> Restaurant:
-    return {
-        "id": row["id"],
-        "owner_id": row["owner_id"],
-        "name": row["name"],
-        "type": row["type"],
-        "phone": row["phone"],
-        "wilaya": row["wilaya"],
-        "lat": row["lat"],
-        "lng": row["lng"],
-    }
-
-
-# ==============================================
-# 🔍 RESTAURANT EXISTS FOR OWNER
-# ==============================================
-
-async def restaurant_exists_for_owner(
-    *,
-    owner_id: int,
-    name: str,
-    phone: str,
-    wilaya: str,
-    lat: float,
-    lng: float,
-) -> bool:
-
-    row = await fetchrow(
+    async def count_by_owner(
+        self,
+        *,
+        owner_id: int,
+    ) -> int:
         """
-        SELECT 1
-        FROM restaurants
-        WHERE owner_id = %s
-          AND LOWER(name) = LOWER(%s)
-          AND phone = %s
-          AND LOWER(wilaya) = LOWER(%s)
-          AND lat = %s
-          AND lng = %s
-        LIMIT 1
-        """,
-        owner_id,
-        name,
-        phone,
-        wilaya,
-        lat,
-        lng,
-    )
+        حساب عدد مطاعم المالك.
+        
+        Args:
+            owner_id: معرف المالك
+            
+        Returns:
+            عدد المطاعم
+        """
+        return await self.count(
+            filters={"owner_id": owner_id, "is_active": True},
+        )
 
-    exists = row is not None
+    # ==============================================
+    # COUNT BY WILAYA
+    # ==============================================
 
-    logger.info(
-        "restaurant_exists_checked",
-        extra={
-            "owner_id": owner_id,
-            "restaurant_name": name,
-            "exists": exists,
-        },
-    )
-
-    return exists
+    async def count_by_wilaya(
+        self,
+        *,
+        wilaya: str,
+    ) -> int:
+        """
+        حساب عدد المطاعم في الولاية.
+        
+        Args:
+            wilaya: اسم الولاية
+            
+        Returns:
+            عدد المطاعم
+        """
+        return await self.count(
+            filters={"wilaya": wilaya, "is_active": True},
+        )
 
 
 # ==============================================
-# 🔍 GET RESTAURANT BY ID
+# 🔄 COMPATIBILITY FUNCTIONS
+# دوال متوافقة مع الاستيرادات القديمة
+# ==============================================
+
+# ==============================================
+# GET RESTAURANT BY ID (COMPATIBILITY)
 # ==============================================
 
 async def get_restaurant_by_id(
     *,
     restaurant_id: int,
-) -> Restaurant | None:
+    session: AsyncSession,
+) -> Optional[Restaurant]:
+    """
+    الحصول على مطعم بالمعرف (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        كائن Restaurant أو None
+    """
+    repo = RestaurantRepository(session=session)
 
-    row = await fetchrow(
-        _RESTAURANT_SELECT + " WHERE id = %s",
-        restaurant_id,
+    return await repo.get_by_id(
+        restaurant_id=restaurant_id,
     )
-
-    if not row:
-        logger.warning(
-            "restaurant_not_found",
-            extra={"restaurant_id": restaurant_id},
-        )
-        return None
-
-    logger.info(
-        "restaurant_found",
-        extra={
-            "restaurant_id": restaurant_id,
-            "owner_id": row["owner_id"],
-        },
-    )
-
-    return _row_to_dict(row)
 
 
 # ==============================================
-# 🔍 GET OWNER RESTAURANTS
+# GET RESTAURANTS BY OWNER (COMPATIBILITY)
 # ==============================================
 
 async def get_restaurants_by_owner(
     *,
     owner_id: int,
-) -> list[Restaurant]:
-    
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+) -> RestaurantList:
     """
-    جلب جميع مطاعم مالك معين
+    الحصول على مطاعم المالك (دالة متوافقة مع الإصدار القديم).
     
     Args:
         owner_id: معرف المالك
+        session: جلسة قاعدة البيانات غير المتزامنة
+        skip: عدد السجلات للتخطي
+        limit: الحد الأقصى للسجلات
         
     Returns:
-        list[Restaurant]: قائمة المطاعم
+        قائمة المطاعم
     """
+    repo = RestaurantRepository(session=session)
 
-    rows = await fetch(
-        _RESTAURANT_SELECT + """
-        WHERE owner_id = %s
-        ORDER BY id DESC
-        """,
-        owner_id,
+    return await repo.get_by_owner_id(
+        owner_id=owner_id,
+        skip=skip,
+        limit=limit,
     )
-
-    restaurants = [_row_to_dict(row) for row in rows]
-
-    logger.info(
-        "owner_restaurants_fetched",
-        extra={
-            "owner_id": owner_id,
-            "count": len(restaurants),
-        },
-    )
-
-    return restaurants
 
 
 # ==============================================
-# 📥 GET ALL RESTAURANTS
+# SEARCH RESTAURANTS (COMPATIBILITY)
 # ==============================================
 
-async def get_all_restaurants() -> list[Restaurant]:
+async def search_restaurants(
+    *,
+    query: str,
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+) -> RestaurantList:
+    """
+    البحث عن مطاعم (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        query: نص البحث
+        session: جلسة قاعدة البيانات غير المتزامنة
+        skip: عدد السجلات للتخطي
+        limit: الحد الأقصى للسجلات
+        
+    Returns:
+        قائمة المطاعم
+    """
+    repo = RestaurantRepository(session=session)
 
-    rows = await fetch(
-        _RESTAURANT_SELECT + """
-        ORDER BY id DESC
-        """
+    return await repo.search(
+        query=query,
+        skip=skip,
+        limit=limit,
     )
 
-    restaurants = [_row_to_dict(row) for row in rows]
 
-    logger.info(
-        "restaurants_fetched",
-        extra={"count": len(restaurants)},
+# ==============================================
+# GET RESTAURANT WITH DETAILS (COMPATIBILITY)
+# ==============================================
+
+async def get_restaurant_with_details(
+    *,
+    restaurant_id: int,
+    session: AsyncSession,
+) -> Optional[Restaurant]:
+    """
+    الحصول على مطعم مع جميع علاقاته (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        كائن Restaurant مع العلاقات أو None
+    """
+    repo = RestaurantRepository(session=session)
+
+    return await repo.get_with_relations(
+        restaurant_id=restaurant_id,
     )
 
-    return restaurants
+
+# ==============================================
+# GET ALL RESTAURANTS (COMPATIBILITY)
+# ==============================================
+
+async def get_all_restaurants(
+    *,
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    only_active: bool = True,
+) -> RestaurantList:
+    """
+    الحصول على جميع المطاعم (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        session: جلسة قاعدة البيانات غير المتزامنة
+        skip: عدد السجلات للتخطي
+        limit: الحد الأقصى للسجلات
+        only_active: جلب المطاعم النشطة فقط
+        
+    Returns:
+        قائمة المطاعم
+    """
+    repo = RestaurantRepository(session=session)
+
+    filters = {}
+
+    if only_active:
+        filters["is_active"] = True
+
+    return await repo.get_all(
+        skip=skip,
+        limit=limit,
+        filters=filters,
+        order_by="name",
+    )
+
+
+# ==============================================
+# CREATE RESTAURANT (COMPATIBILITY)
+# ==============================================
+
+async def create_restaurant(
+    *,
+    session: AsyncSession,
+    data: dict,
+) -> Restaurant:
+    """
+    إنشاء مطعم جديد (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        session: جلسة قاعدة البيانات غير المتزامنة
+        data: بيانات المطعم
+        
+    Returns:
+        المطعم المُنشأ
+    """
+    repo = RestaurantRepository(session=session)
+
+    return await repo.create(data=data)

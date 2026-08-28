@@ -1,69 +1,394 @@
 # ==============================================
 # 🏦 RESTAURANT PAYMENT SETTINGS REPOSITORY
-# Async Psycopg3 Version
+# عمليات قاعدة البيانات لإعدادات الدفع باستخدام SQLAlchemy
 # ==============================================
 
-from app.core.db import (
-    execute,
-    fetchrow,
-    insert_returning_id,
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
 )
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.logger import logger
+from app.models.restaurant_payment_setting import RestaurantPaymentSetting
+from app.repositories.base import BaseRepository
 
 # ==============================================
-# 🔍 GET PAYMENT SETTINGS
+# 🧩 TYPES
+# ==============================================
+
+PaymentSettingsData = Dict[str, Any]
+PaymentSettingsUpdateData = Dict[str, Any]
+AllowedMethodsList = List[str]
+
+# ==============================================
+# 🏦 RESTAURANT PAYMENT SETTINGS REPOSITORY
+# ==============================================
+
+
+class RestaurantPaymentSettingsRepository(
+    BaseRepository[
+        RestaurantPaymentSetting,
+        PaymentSettingsData,
+        PaymentSettingsUpdateData,
+    ]
+):
+    """
+    مستودع إعدادات الدفع - يوفر عمليات خاصة بإعدادات الدفع للمطاعم.
+    
+    مسؤول عن:
+        - عمليات CRUD الأساسية لإعدادات الدفع
+        - إنشاء أو تحديث إعدادات الدفع
+        - جلب طرق الدفع المسموح بها
+    
+    Attributes:
+        model: نموذج RestaurantPaymentSetting
+        session: جلسة قاعدة البيانات غير المتزامنة
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+    ) -> None:
+        """
+        تهيئة مستودع إعدادات الدفع.
+        
+        Args:
+            session: جلسة قاعدة البيانات غير المتزامنة
+        """
+        super().__init__(RestaurantPaymentSetting, session)
+
+    # ==========================================
+    # 📖 QUERIES
+    # ==========================================
+
+    # ==============================================
+    # GET BY RESTAURANT ID
+    # ==============================================
+
+    async def get_by_restaurant_id(
+        self,
+        *,
+        restaurant_id: int,
+    ) -> Optional[RestaurantPaymentSetting]:
+        """
+        الحصول على إعدادات الدفع لمطعم معين.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            
+        Returns:
+            كائن RestaurantPaymentSetting أو None
+        """
+        try:
+            result = await self.session.execute(
+                select(self.model)
+                .where(self.model.restaurant_id == restaurant_id)
+                .limit(1),
+            )
+
+            return result.scalar_one_or_none()
+
+        except Exception as e:
+            logger.exception(
+                "payment_settings_repo_get_by_restaurant_failed",
+                extra={
+                    "restaurant_id": restaurant_id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==========================================
+    # ✏️ MUTATIONS
+    # ==========================================
+
+    # ==============================================
+    # UPSERT
+    # ==============================================
+
+    async def upsert(
+        self,
+        *,
+        restaurant_id: int,
+        allow_cash: bool = True,
+        allow_card: bool = True,
+        allow_ccp: bool = False,
+        allow_baridimob: bool = False,
+        allow_stripe: bool = False,
+        allow_paypal: bool = False,
+    ) -> RestaurantPaymentSetting:
+        """
+        إنشاء أو تحديث إعدادات الدفع لمطعم.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            allow_cash: السماح بالدفع نقداً
+            allow_card: السماح بالدفع ببطاقة POS
+            allow_ccp: السماح بالدفع عبر CCP
+            allow_baridimob: السماح بالدفع عبر بريدي موب
+            allow_stripe: السماح بالدفع عبر Stripe
+            allow_paypal: السماح بالدفع عبر PayPal
+            
+        Returns:
+            كائن RestaurantPaymentSetting المحدث
+        """
+        logger.info(
+            "payment_settings_repo_upsert",
+            extra={
+                "restaurant_id": restaurant_id,
+                "allow_cash": allow_cash,
+                "allow_card": allow_card,
+                "allow_ccp": allow_ccp,
+                "allow_baridimob": allow_baridimob,
+                "allow_stripe": allow_stripe,
+                "allow_paypal": allow_paypal,
+            },
+        )
+
+        # التحقق من وجود إعدادات مسبقة
+        existing = await self.get_by_restaurant_id(
+            restaurant_id=restaurant_id,
+        )
+
+        if existing:
+            # تحديث الإعدادات الموجودة
+            data: PaymentSettingsUpdateData = {
+                "allow_cash": allow_cash,
+                "allow_card": allow_card,
+                "allow_ccp": allow_ccp,
+                "allow_baridimob": allow_baridimob,
+                "allow_stripe": allow_stripe,
+                "allow_paypal": allow_paypal,
+            }
+
+            updated = await self.update(
+                id=existing.id,
+                data=data,
+            )
+
+            if not updated:
+                raise ValueError("payment_settings_update_failed")
+
+            logger.info(
+                "payment_settings_updated",
+                extra={"restaurant_id": restaurant_id},
+            )
+
+            return updated
+
+        # إنشاء إعدادات جديدة
+        data: PaymentSettingsData = {
+            "restaurant_id": restaurant_id,
+            "allow_cash": allow_cash,
+            "allow_card": allow_card,
+            "allow_ccp": allow_ccp,
+            "allow_baridimob": allow_baridimob,
+            "allow_stripe": allow_stripe,
+            "allow_paypal": allow_paypal,
+        }
+
+        created = await self.create(data=data)
+
+        logger.info(
+            "payment_settings_created",
+            extra={
+                "payment_id": created.id,
+                "restaurant_id": restaurant_id,
+            },
+        )
+
+        return created
+
+    # ==============================================
+    # UPDATE PAYMENT METHODS
+    # ==============================================
+
+    async def update_payment_methods(
+        self,
+        *,
+        restaurant_id: int,
+        allow_cash: Optional[bool] = None,
+        allow_card: Optional[bool] = None,
+        allow_ccp: Optional[bool] = None,
+        allow_baridimob: Optional[bool] = None,
+        allow_stripe: Optional[bool] = None,
+        allow_paypal: Optional[bool] = None,
+    ) -> Optional[RestaurantPaymentSetting]:
+        """
+        تحديث طرق الدفع المسموح بها لمطعم.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            allow_cash: السماح بالدفع نقداً (اختياري)
+            allow_card: السماح بالدفع ببطاقة POS (اختياري)
+            allow_ccp: السماح بالدفع عبر CCP (اختياري)
+            allow_baridimob: السماح بالدفع عبر بريدي موب (اختياري)
+            allow_stripe: السماح بالدفع عبر Stripe (اختياري)
+            allow_paypal: السماح بالدفع عبر PayPal (اختياري)
+            
+        Returns:
+            كائن RestaurantPaymentSetting المحدث أو None
+        """
+        logger.info(
+            "payment_settings_repo_update_methods",
+            extra={
+                "restaurant_id": restaurant_id,
+                "allow_cash": allow_cash,
+                "allow_card": allow_card,
+                "allow_ccp": allow_ccp,
+                "allow_baridimob": allow_baridimob,
+                "allow_stripe": allow_stripe,
+                "allow_paypal": allow_paypal,
+            },
+        )
+
+        # الحصول على الإعدادات الحالية
+        settings = await self.get_by_restaurant_id(
+            restaurant_id=restaurant_id,
+        )
+
+        if not settings:
+            # إنشاء إعدادات جديدة إذا لم تكن موجودة
+            return await self.upsert(
+                restaurant_id=restaurant_id,
+                allow_cash=allow_cash if allow_cash is not None else True,
+                allow_card=allow_card if allow_card is not None else True,
+                allow_ccp=allow_ccp if allow_ccp is not None else False,
+                allow_baridimob=allow_baridimob if allow_baridimob is not None else False,
+                allow_stripe=allow_stripe if allow_stripe is not None else False,
+                allow_paypal=allow_paypal if allow_paypal is not None else False,
+            )
+
+        # تحديث الحقول المحددة فقط
+        data: PaymentSettingsUpdateData = {}
+
+        if allow_cash is not None:
+            data["allow_cash"] = allow_cash
+        if allow_card is not None:
+            data["allow_card"] = allow_card
+        if allow_ccp is not None:
+            data["allow_ccp"] = allow_ccp
+        if allow_baridimob is not None:
+            data["allow_baridimob"] = allow_baridimob
+        if allow_stripe is not None:
+            data["allow_stripe"] = allow_stripe
+        if allow_paypal is not None:
+            data["allow_paypal"] = allow_paypal
+
+        if not data:
+            return settings
+
+        return await self.update(
+            id=settings.id,
+            data=data,
+        )
+
+    # ==========================================
+    # 📊 STATISTICS
+    # ==========================================
+
+    # ==============================================
+    # GET ALLOWED METHODS
+    # ==============================================
+
+    async def get_allowed_methods(
+        self,
+        *,
+        restaurant_id: int,
+    ) -> AllowedMethodsList:
+        """
+        الحصول على قائمة طرق الدفع المسموح بها لمطعم.
+        
+        Args:
+            restaurant_id: معرف المطعم
+            
+        Returns:
+            قائمة طرق الدفع المسموح بها
+        """
+        settings = await self.get_by_restaurant_id(
+            restaurant_id=restaurant_id,
+        )
+
+        if not settings:
+            # القيم الافتراضية
+            return ["cash", "card"]
+
+        allowed: AllowedMethodsList = []
+
+        if settings.allow_cash:
+            allowed.append("cash")
+        if settings.allow_card:
+            allowed.append("card")
+        if settings.allow_ccp:
+            allowed.append("ccp")
+        if settings.allow_baridimob:
+            allowed.append("baridimob")
+        if settings.allow_stripe:
+            allowed.append("stripe")
+        if settings.allow_paypal:
+            allowed.append("paypal")
+
+        # إذا لم تكن هناك طرق مسموحة، نعود للقيم الافتراضية
+        if not allowed:
+            return ["cash", "card"]
+
+        return allowed
+
+
+# ==============================================
+# 🔄 COMPATIBILITY FUNCTIONS
+# دوال متوافقة مع الاستيرادات القديمة
+# ==============================================
+
+# ==============================================
+# GET RESTAURANT PAYMENT SETTINGS (COMPATIBILITY)
 # ==============================================
 
 async def get_restaurant_payment_settings(
     *,
     restaurant_id: int,
-) -> dict | None:
+    session: AsyncSession,
+) -> Optional[Dict[str, Any]]:
     """
-    جلب إعدادات الدفع لمطعم معين
+    جلب إعدادات الدفع لمطعم معين (دالة متوافقة مع الإصدار القديم).
     
     Args:
         restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        dict | None: إعدادات الدفع أو None
+        إعدادات الدفع أو None
     """
-    row = await fetchrow(
-        """
-        SELECT
-            id,
-            restaurant_id,
-            allow_cash,
-            allow_card,
-            allow_ccp,
-            allow_baridimob,
-            allow_stripe,
-            allow_paypal,
-            created_at,
-            updated_at
-        FROM restaurant_payment_settings
-        WHERE restaurant_id = %s
-        """,
-        restaurant_id,
+    repo = RestaurantPaymentSettingsRepository(session=session)
+
+    settings = await repo.get_by_restaurant_id(
+        restaurant_id=restaurant_id,
     )
-    
-    if not row:
+
+    if not settings:
         return None
-    
+
     return {
-        "id": row["id"],
-        "restaurant_id": row["restaurant_id"],
-        "allow_cash": row["allow_cash"],
-        "allow_card": row["allow_card"],
-        "allow_ccp": row["allow_ccp"],
-        "allow_baridimob": row["allow_baridimob"],
-        "allow_stripe": row["allow_stripe"],
-        "allow_paypal": row["allow_paypal"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
+        "id": settings.id,
+        "restaurant_id": settings.restaurant_id,
+        "allow_cash": settings.allow_cash,
+        "allow_card": settings.allow_card,
+        "allow_ccp": settings.allow_ccp,
+        "allow_baridimob": settings.allow_baridimob,
+        "allow_stripe": settings.allow_stripe,
+        "allow_paypal": settings.allow_paypal,
+        "created_at": settings.created_at,
+        "updated_at": settings.updated_at,
     }
 
+
 # ==============================================
-# ➕ CREATE OR UPDATE PAYMENT SETTINGS
+# UPSERT RESTAURANT PAYMENT SETTINGS (COMPATIBILITY)
 # ==============================================
 
 async def upsert_restaurant_payment_settings(
@@ -75,9 +400,10 @@ async def upsert_restaurant_payment_settings(
     allow_baridimob: bool = False,
     allow_stripe: bool = False,
     allow_paypal: bool = False,
-) -> dict:
+    session: AsyncSession,
+) -> Dict[str, Any]:
     """
-    إنشاء أو تحديث إعدادات الدفع لمطعم
+    إنشاء أو تحديث إعدادات الدفع لمطعم (دالة متوافقة مع الإصدار القديم).
     
     Args:
         restaurant_id: معرف المطعم
@@ -87,98 +413,58 @@ async def upsert_restaurant_payment_settings(
         allow_baridimob: السماح بالدفع عبر بريدي موب
         allow_stripe: السماح بالدفع عبر Stripe
         allow_paypal: السماح بالدفع عبر PayPal
+        session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        dict: إعدادات الدفع المحدثة
+        إعدادات الدفع المحدثة
     """
-    # محاولة تحديث الإعدادات الموجودة
-    existing = await get_restaurant_payment_settings(
+    repo = RestaurantPaymentSettingsRepository(session=session)
+
+    settings = await repo.upsert(
         restaurant_id=restaurant_id,
+        allow_cash=allow_cash,
+        allow_card=allow_card,
+        allow_ccp=allow_ccp,
+        allow_baridimob=allow_baridimob,
+        allow_stripe=allow_stripe,
+        allow_paypal=allow_paypal,
     )
 
-    if existing:
-        # تحديث الإعدادات الموجودة
-        await execute(
-            """
-            UPDATE restaurant_payment_settings
-            SET
-                allow_cash = %s,
-                allow_card = %s,
-                allow_ccp = %s,
-                allow_baridimob = %s,
-                allow_stripe = %s,
-                allow_paypal = %s,
-                updated_at = NOW()
-            WHERE restaurant_id = %s
-            RETURNING
-                id,
-                restaurant_id,
-                allow_cash,
-                allow_card,
-                allow_ccp,
-                allow_baridimob,
-                allow_stripe,
-                allow_paypal,
-                created_at,
-                updated_at
-            """,
-            allow_cash,
-            allow_card,
-            allow_ccp,
-            allow_baridimob,
-            allow_stripe,
-            allow_paypal,
-            restaurant_id,
-        )
+    return {
+        "id": settings.id,
+        "restaurant_id": settings.restaurant_id,
+        "allow_cash": settings.allow_cash,
+        "allow_card": settings.allow_card,
+        "allow_ccp": settings.allow_ccp,
+        "allow_baridimob": settings.allow_baridimob,
+        "allow_stripe": settings.allow_stripe,
+        "allow_paypal": settings.allow_paypal,
+        "created_at": settings.created_at,
+        "updated_at": settings.updated_at,
+    }
 
-        # جلب الإعدادات المحدثة
-        return await get_restaurant_payment_settings(
-            restaurant_id=restaurant_id,
-        )
 
-    # إنشاء إعدادات جديدة
-    payment_id = await insert_returning_id(
-        """
-        INSERT INTO restaurant_payment_settings
-        (
-            restaurant_id,
-            allow_cash,
-            allow_card,
-            allow_ccp,
-            allow_baridimob,
-            allow_stripe,
-            allow_paypal
-        )
-        VALUES
-        (
-            %s,
-            %s,
-            %s,
-            %s,
-            %s,
-            %s,
-            %s
-        )
-        RETURNING id
-        """,
-        restaurant_id,
-        allow_cash,
-        allow_card,
-        allow_ccp,
-        allow_baridimob,
-        allow_stripe,
-        allow_paypal,
-    )
+# ==============================================
+# GET ALLOWED PAYMENT METHODS (COMPATIBILITY)
+# ==============================================
 
-    logger.info(
-        "restaurant_payment_settings_created",
-        extra={
-            "payment_id": payment_id,
-            "restaurant_id": restaurant_id,
-        },
-    )
+async def get_allowed_payment_methods(
+    *,
+    restaurant_id: int,
+    session: AsyncSession,
+) -> AllowedMethodsList:
+    """
+    الحصول على قائمة طرق الدفع المسموح بها لمطعم (دالة متوافقة مع الإصدار القديم).
+    
+    Args:
+        restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        قائمة طرق الدفع المسموح بها
+    """
+    repo = RestaurantPaymentSettingsRepository(session=session)
 
-    # جلب الإعدادات المنشأة
-    return await get_restaurant_payment_settings(
+    return await repo.get_allowed_methods(
         restaurant_id=restaurant_id,
     )

@@ -1,8 +1,12 @@
 # ==============================================
 # 🏪 RESTAURANT STEP - VERSION PRO
+# معالج خطوة إدخال اسم المطعم
 # ==============================================
 
-from typing import Any
+from typing import (
+    Any,
+    Dict,
+)
 
 from app.core.logger import logger
 
@@ -12,18 +16,18 @@ from app.helpers.state_transition import transition_to
 from app.helpers.ui_manager import UIManager
 from app.helpers.state_helper import (
     update_state_field,
-    get_user_state
+    get_user_state,
 )
 
 from app.states.owner_states import OwnerStates
-
 from app.views.ui import back_ui
+
 
 # ==============================================
 # 🧩 TYPES
 # ==============================================
 
-StateData = dict[str, Any]
+StateData = Dict[str, Any]
 
 
 # ==============================================
@@ -38,16 +42,16 @@ async def handle_restaurant_step(
     message_id: int,
 ) -> None:
     """
-    معالجة إدخال اسم المحل
+    معالجة إدخال اسم المحل والانتقال إلى خطوة الولاية.
 
     Args:
-        chat_id: معرف المستخدم
-        text: النص المدخل
+        chat_id: معرف المستخدم في تيليجرام
+        text: النص المدخل من المستخدم
         state: حالة المستخدم الحالية
-        message_id: معرف رسالة المستخدم (تبقى ظاهرة)
+        message_id: معرف رسالة المستخدم
     """
     logger.info(
-        "handle_restaurant_step",
+        "handle_restaurant_step_started",
         extra={
             "chat_id": chat_id,
             "text_length": len(text),
@@ -55,30 +59,12 @@ async def handle_restaurant_step(
     )
 
     # ==========================================
-    # 💾 تخزين معرف رسالة المستخدم (لحذفها عند الرجوع)
+    # 💾 تخزين معرف رسالة المستخدم
     # ==========================================
 
-    logger.info(
-        "before_storing_user_message_id_restaurant",
-        extra={
-            "chat_id": chat_id,
-            "message_id": message_id,
-        },
-    )
-
-    #يخزن user_message_id_restaurant في Redis
-    await update_state_field(
+    await _store_user_message_id(
         chat_id=chat_id,
-        key="user_message_id_restaurant",
-        value=message_id,
-    )
-
-    logger.info(
-        "after_storing_user_message_id_restaurant",
-        extra={
-            "chat_id": chat_id,
-            "message_id": message_id,
-        },
+        message_id=message_id,
     )
 
     # ==========================================
@@ -91,78 +77,166 @@ async def handle_restaurant_step(
         field="restaurant",
     )
 
-    # ==========================================
-    # 🚫 INVALID INPUT
-    # ==========================================
-
     if clean is None:
-        logger.warning(
-            "invalid_restaurant_name",
-            extra={
-                "chat_id": chat_id,
-            },
+        await _handle_invalid_input(
+            chat_id=chat_id,
+            state=state,
         )
-
-        restaurant_message_id = state.get("restaurant_message_id")
-
-        if restaurant_message_id:
-            await UIManager.edit(
-                chat_id=chat_id,
-                message_id=restaurant_message_id,
-                text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
-                reply_markup=await back_ui(),
-            )
-        else:
-            await UIManager.send_new_message(
-                chat_id=chat_id,
-                text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
-                reply_markup=await back_ui(),
-            )
         return
 
     # ==========================================
     # 💾 SAVE STATE
     # ==========================================
 
-    await update_state_field(
+    await _save_restaurant_name(
         chat_id=chat_id,
-        key="restaurant",
-        value=clean,
-    )
-
-    logger.info(
-        "restaurant_name_saved",
-        extra={
-            "chat_id": chat_id,
-            "restaurant_name": clean,
-        },
+        restaurant_name=clean,
     )
 
     # ==========================================
     # 🔄 TRANSITION TO WILAYA STEP
     # ==========================================
 
+    await _transition_to_wilaya(
+        chat_id=chat_id,
+        state=state,
+        message_id=message_id,
+    )
+
+
+# ==========================================
+# 🛠️ PRIVATE HELPERS
+# ==========================================
+
+async def _store_user_message_id(
+    *,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    """
+    تخزين معرف رسالة المستخدم في Redis.
+
+    Args:
+        chat_id: معرف المستخدم
+        message_id: معرف الرسالة
+    """
+    logger.info(
+        "storing_user_message_id",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id,
+        },
+    )
+
+    await update_state_field(
+        chat_id=chat_id,
+        key="user_message_id_restaurant",
+        value=message_id,
+    )
+
+    logger.info(
+        "user_message_id_stored",
+        extra={
+            "chat_id": chat_id,
+            "message_id": message_id,
+        },
+    )
+
+
+async def _handle_invalid_input(
+    *,
+    chat_id: int,
+    state: StateData,
+) -> None:
+    """
+    معالجة الإدخال غير الصحيح.
+
+    Args:
+        chat_id: معرف المستخدم
+        state: حالة المستخدم الحالية
+    """
+    logger.warning(
+        "invalid_restaurant_name",
+        extra={"chat_id": chat_id},
+    )
+
+    restaurant_message_id = state.get("restaurant_message_id")
+
+    if restaurant_message_id:
+        await UIManager.edit(
+            chat_id=chat_id,
+            message_id=restaurant_message_id,
+            text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
+            reply_markup=await back_ui(),
+        )
+    else:
+        await UIManager.send_new_message(
+            chat_id=chat_id,
+            text="❌ اسم المحل غير صالح. يرجى إدخال اسم صحيح.",
+            reply_markup=await back_ui(),
+        )
+
+
+async def _save_restaurant_name(
+    *,
+    chat_id: int,
+    restaurant_name: str,
+) -> None:
+    """
+    حفظ اسم المطعم في Redis.
+
+    Args:
+        chat_id: معرف المستخدم
+        restaurant_name: اسم المطعم
+    """
+    await update_state_field(
+        chat_id=chat_id,
+        key="restaurant",
+        value=restaurant_name,
+    )
+
+    logger.info(
+        "restaurant_name_saved",
+        extra={
+            "chat_id": chat_id,
+            "restaurant_name": restaurant_name,
+        },
+    )
+
+
+async def _transition_to_wilaya(
+    *,
+    chat_id: int,
+    state: StateData,
+    message_id: int,
+) -> None:
+    """
+    الانتقال إلى خطوة الولاية.
+
+    Args:
+        chat_id: معرف المستخدم
+        state: حالة المستخدم الحالية
+        message_id: معرف رسالة المستخدم
+    """
     # ✅ جلب الحالة المحدثة من Redis
-    state = await get_user_state(chat_id=chat_id)
+    updated_state = await get_user_state(chat_id=chat_id)
 
     if not await transition_to(
         chat_id=chat_id,
-        state=state, 
+        state=updated_state,
         next_state=OwnerStates.WILAYA,
     ):
         logger.error(
             "restaurant_transition_to_wilaya_failed",
-            extra={
-                "chat_id": chat_id,
-            },
+            extra={"chat_id": chat_id},
         )
         return
 
     # ==========================================
-    # 🗺️ SEND WILAYA NAME SCREEN
+    # 🗺️ إرسال شاشة اختيار الولاية
     # ==========================================
 
-    restaurant_message_id = state.get("restaurant_message_id")
+    restaurant_message_id = updated_state.get("restaurant_message_id")
 
     if not restaurant_message_id:
         logger.warning(

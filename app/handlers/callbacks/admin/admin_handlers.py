@@ -19,7 +19,7 @@ from app.repositories.restaurant_repo import get_all_restaurants
 from app.repositories.owner_repo import get_all_owners
 from app.repositories.orders_repo import get_restaurant_orders
 
-from app.services.business.registration_service import (
+from app.services.business.registration_request_service import (
     approve_registration,
     reject_registration,
 )

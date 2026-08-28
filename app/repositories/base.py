@@ -1,0 +1,474 @@
+# ==============================================
+# 📦 BASE REPOSITORY
+# النموذج الأساسي لجميع المستودعات
+# يوفر عمليات CRUD مشتركة لجميع النماذج
+# ==============================================
+
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+)
+
+from sqlalchemy import (
+    func,
+    select,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.logger import logger
+from app.models.base import BaseModel
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+ModelType = TypeVar("ModelType", bound=BaseModel)
+CreateSchemaType = TypeVar("CreateSchemaType", bound=Dict[str, Any])
+UpdateSchemaType = TypeVar("UpdateSchemaType", bound=Dict[str, Any])
+FilterType = Optional[Dict[str, Any]]
+
+# ==============================================
+# 📦 BASE REPOSITORY
+# ==============================================
+
+
+class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """
+    المستودع الأساسي - يوفر عمليات CRUD مشتركة.
+    
+    مسؤول عن:
+        - عمليات الإنشاء (create, create_many)
+        - عمليات القراءة (get_by_id, get_all, count, exists)
+        - عمليات التحديث (update)
+        - عمليات الحذف (delete, delete_many)
+    
+    Attributes:
+        model: نموذج SQLAlchemy
+        session: جلسة قاعدة البيانات غير المتزامنة
+    """
+
+    def __init__(
+        self,
+        model: Type[ModelType],
+        session: AsyncSession,
+    ) -> None:
+        """
+        تهيئة المستودع.
+        
+        Args:
+            model: نموذج SQLAlchemy
+            session: جلسة قاعدة البيانات غير المتزامنة
+        """
+        self.model = model
+        self.session = session
+
+    # ==========================================
+    # 📥 CREATE
+    # ==========================================
+
+    # ==============================================
+    # CREATE
+    # ==============================================
+
+    async def create(
+        self,
+        *,
+        data: CreateSchemaType,
+    ) -> ModelType:
+        """
+        إنشاء سجل جديد.
+        
+        Args:
+            data: بيانات الإنشاء
+            
+        Returns:
+            النموذج المُنشأ
+        """
+        try:
+            instance = self.model(**data)
+            self.session.add(instance)
+            await self.session.commit()
+            await self.session.refresh(instance)
+
+            logger.info(
+                f"{self.model.__name__}_created",
+                extra={"id": getattr(instance, "id", None)},
+            )
+
+            return instance
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.exception(
+                f"{self.model.__name__}_create_failed",
+                extra={"error": str(e)},
+            )
+            raise
+
+    # ==============================================
+    # CREATE MANY
+    # ==============================================
+
+    async def create_many(
+        self,
+        *,
+        data_list: List[CreateSchemaType],
+    ) -> List[ModelType]:
+        """
+        إنشاء عدة سجلات دفعة واحدة.
+        
+        Args:
+            data_list: قائمة بيانات الإنشاء
+            
+        Returns:
+            قائمة النماذج المُنشأة
+        """
+        try:
+            instances = [self.model(**data) for data in data_list]
+            self.session.add_all(instances)
+            await self.session.commit()
+
+            for instance in instances:
+                await self.session.refresh(instance)
+
+            logger.info(
+                f"{self.model.__name__}_many_created",
+                extra={"count": len(instances)},
+            )
+
+            return instances
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.exception(
+                f"{self.model.__name__}_create_many_failed",
+                extra={"error": str(e)},
+            )
+            raise
+
+    # ==========================================
+    # 📖 READ
+    # ==========================================
+
+    # ==============================================
+    # GET BY ID
+    # ==============================================
+
+    async def get_by_id(
+        self,
+        *,
+        id: int,
+    ) -> Optional[ModelType]:
+        """
+        الحصول على سجل بالمعرف.
+        
+        Args:
+            id: المعرف
+            
+        Returns:
+            النموذج أو None
+        """
+        try:
+            result = await self.session.execute(
+                select(self.model).where(self.model.id == id),
+            )
+
+            return result.scalar_one_or_none()
+
+        except Exception as e:
+            logger.exception(
+                f"{self.model.__name__}_get_by_id_failed",
+                extra={
+                    "id": id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==============================================
+    # GET ALL
+    # ==============================================
+
+    async def get_all(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: FilterType = None,
+        order_by: Optional[str] = None,
+        descending: bool = False,
+    ) -> List[ModelType]:
+        """
+        الحصول على جميع السجلات مع ترقيم الصفحات.
+        
+        Args:
+            skip: عدد السجلات للتخطي
+            limit: الحد الأقصى للسجلات
+            filters: عوامل التصفية
+            order_by: اسم العمود للترتيب
+            descending: ترتيب تنازلي
+            
+        Returns:
+            قائمة النماذج
+        """
+        try:
+            query = select(self.model)
+
+            # تطبيق الفلاتر
+            if filters:
+                for key, value in filters.items():
+                    if hasattr(self.model, key) and value is not None:
+                        query = query.where(
+                            getattr(self.model, key) == value,
+                        )
+
+            # تطبيق الترتيب
+            if order_by and hasattr(self.model, order_by):
+                column = getattr(self.model, order_by)
+                query = query.order_by(
+                    column.desc() if descending else column.asc(),
+                )
+
+            # تطبيق الترقيم
+            query = query.offset(skip).limit(limit)
+
+            result = await self.session.execute(query)
+
+            return result.scalars().all()
+
+        except Exception as e:
+            logger.exception(
+                f"{self.model.__name__}_get_all_failed",
+                extra={"error": str(e)},
+            )
+            raise
+
+    # ==============================================
+    # COUNT
+    # ==============================================
+
+    async def count(
+        self,
+        *,
+        filters: FilterType = None,
+    ) -> int:
+        """
+        حساب عدد السجلات.
+        
+        Args:
+            filters: عوامل التصفية
+            
+        Returns:
+            عدد السجلات
+        """
+        try:
+            query = select(func.count()).select_from(self.model)
+
+            if filters:
+                for key, value in filters.items():
+                    if hasattr(self.model, key) and value is not None:
+                        query = query.where(
+                            getattr(self.model, key) == value,
+                        )
+
+            result = await self.session.execute(query)
+
+            return result.scalar_one()
+
+        except Exception as e:
+            logger.exception(
+                f"{self.model.__name__}_count_failed",
+                extra={"error": str(e)},
+            )
+            raise
+
+    # ==============================================
+    # EXISTS
+    # ==============================================
+
+    async def exists(
+        self,
+        *,
+        id: int,
+    ) -> bool:
+        """
+        التحقق من وجود سجل.
+        
+        Args:
+            id: المعرف
+            
+        Returns:
+            True إذا كان موجوداً، False إذا لم يكن
+        """
+        try:
+            result = await self.session.execute(
+                select(func.count())
+                .where(self.model.id == id)
+                .select_from(self.model),
+            )
+
+            return result.scalar_one() > 0
+
+        except Exception as e:
+            logger.exception(
+                f"{self.model.__name__}_exists_failed",
+                extra={
+                    "id": id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==========================================
+    # ✏️ UPDATE
+    # ==========================================
+
+    # ==============================================
+    # UPDATE
+    # ==============================================
+
+    async def update(
+        self,
+        *,
+        id: int,
+        data: UpdateSchemaType,
+    ) -> Optional[ModelType]:
+        """
+        تحديث سجل.
+        
+        Args:
+            id: المعرف
+            data: بيانات التحديث
+            
+        Returns:
+            النموذج المُحدّث أو None
+        """
+        try:
+            instance = await self.get_by_id(id=id)
+
+            if not instance:
+                return None
+
+            for key, value in data.items():
+                if hasattr(instance, key) and value is not None:
+                    setattr(instance, key, value)
+
+            await self.session.commit()
+            await self.session.refresh(instance)
+
+            logger.info(
+                f"{self.model.__name__}_updated",
+                extra={"id": id},
+            )
+
+            return instance
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.exception(
+                f"{self.model.__name__}_update_failed",
+                extra={
+                    "id": id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==========================================
+    # 🗑️ DELETE
+    # ==========================================
+
+    # ==============================================
+    # DELETE
+    # ==============================================
+
+    async def delete(
+        self,
+        *,
+        id: int,
+    ) -> bool:
+        """
+        حذف سجل.
+        
+        Args:
+            id: المعرف
+            
+        Returns:
+            True إذا تم الحذف، False إذا لم يتم
+        """
+        try:
+            instance = await self.get_by_id(id=id)
+
+            if not instance:
+                return False
+
+            await self.session.delete(instance)
+            await self.session.commit()
+
+            logger.info(
+                f"{self.model.__name__}_deleted",
+                extra={"id": id},
+            )
+
+            return True
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.exception(
+                f"{self.model.__name__}_delete_failed",
+                extra={
+                    "id": id,
+                    "error": str(e),
+                },
+            )
+            raise
+
+    # ==============================================
+    # DELETE MANY
+    # ==============================================
+
+    async def delete_many(
+        self,
+        *,
+        ids: List[int],
+    ) -> int:
+        """
+        حذف عدة سجلات.
+        
+        Args:
+            ids: قائمة المعرفات
+            
+        Returns:
+            عدد السجلات المحذوفة
+        """
+        try:
+            result = await self.session.execute(
+                select(self.model).where(self.model.id.in_(ids)),
+            )
+
+            instances = result.scalars().all()
+
+            for instance in instances:
+                await self.session.delete(instance)
+
+            await self.session.commit()
+
+            logger.info(
+                f"{self.model.__name__}_many_deleted",
+                extra={"count": len(instances)},
+            )
+
+            return len(instances)
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.exception(
+                f"{self.model.__name__}_delete_many_failed",
+                extra={"error": str(e)},
+            )
+            raise

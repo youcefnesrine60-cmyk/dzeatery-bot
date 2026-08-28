@@ -1,0 +1,592 @@
+# ==============================================
+# 📦 ORDER SCHEMAS
+# نماذج Pydantic للطلبات
+# تدير التحقق من صحة البيانات وتسلسلها للطلبات
+# ==============================================
+
+from datetime import datetime
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
+
+from pydantic import (
+    BaseModel,
+    Field,
+)
+
+# ==============================================
+# 🧩 TYPES
+# ==============================================
+
+OrderData = Dict[str, Any]
+OrderUpdateData = Dict[str, Any]
+OrderItemPayload = Dict[str, Any]
+OrderOptionPayload = Dict[str, Any]
+
+# ==============================================
+# 📦 BASE SCHEMA
+# ==============================================
+
+class OrderBase(BaseModel):
+    """
+    المخطط الأساسي للطلب.
+    
+    يحتوي على الحقول المشتركة بين جميع مخططات الطلب.
+    
+    Attributes:
+        restaurant_id: معرف المطعم
+        branch_id: معرف الفرع
+        table_id: معرف الطاولة
+        employee_id: معرف الموظف
+        order_number: رقم الطلب
+        order_type: نوع الطلب (dine_in, takeaway, delivery)
+        customer_name: اسم العميل
+        customer_phone: رقم هاتف العميل
+        delivery_address: عنوان التوصيل
+        customer_note: ملاحظات العميل
+        status: حالة الطلب
+        subtotal_amount: المبلغ الإجمالي قبل الخصم
+        discount_amount: مبلغ الخصم
+        tax_amount: مبلغ الضريبة
+        delivery_amount: مبلغ التوصيل
+        total_amount: المبلغ النهائي
+    """
+    restaurant_id: int = Field(
+        ...,
+        description="معرف المطعم",
+        example=1,
+    )
+    branch_id: Optional[int] = Field(
+        None,
+        description="معرف الفرع",
+        example=1,
+    )
+    table_id: Optional[int] = Field(
+        None,
+        description="معرف الطاولة",
+        example=1,
+    )
+    employee_id: Optional[int] = Field(
+        None,
+        description="معرف الموظف",
+        example=1,
+    )
+    order_number: str = Field(
+        ...,
+        max_length=50,
+        description="رقم الطلب",
+        example="RST1-000001",
+    )
+    order_type: str = Field(
+        ...,
+        max_length=30,
+        description="نوع الطلب: dine_in, takeaway, delivery",
+        example="dine_in",
+    )
+    customer_name: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="اسم العميل",
+        example="أحمد محمد",
+    )
+    customer_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="رقم هاتف العميل",
+        example="0555123456",
+    )
+    delivery_address: Optional[str] = Field(
+        None,
+        description="عنوان التوصيل",
+        example="شارع الأندلس، الجزائر",
+    )
+    customer_note: Optional[str] = Field(
+        None,
+        description="ملاحظات العميل",
+        example="الرجاء إضافة صوص إضافي",
+    )
+    status: str = Field(
+        "pending",
+        max_length=50,
+        description=(
+            "حالة الطلب: pending, confirmed, preparing, ready, "
+            "delivering, delivered, completed, cancelled, paid"
+        ),
+        example="pending",
+    )
+    subtotal_amount: float = Field(
+        0,
+        description="المبلغ الإجمالي قبل الخصم",
+        example=100.00,
+    )
+    discount_amount: float = Field(
+        0,
+        description="مبلغ الخصم",
+        example=10.00,
+    )
+    tax_amount: float = Field(
+        0,
+        description="مبلغ الضريبة",
+        example=15.00,
+    )
+    delivery_amount: float = Field(
+        0,
+        description="مبلغ التوصيل",
+        example=5.00,
+    )
+    total_amount: float = Field(
+        0,
+        description="المبلغ النهائي",
+        example=110.00,
+    )
+
+
+# ==============================================
+# 📥 CREATE SCHEMA
+# ==============================================
+
+class OrderCreate(BaseModel):
+    """
+    مخطط إنشاء طلب جديد.
+    
+    Attributes:
+        restaurant_id: معرف المطعم
+        branch_id: معرف الفرع (اختياري)
+        table_id: معرف الطاولة (اختياري)
+        employee_id: معرف الموظف (اختياري)
+        order_type: نوع الطلب
+        customer_name: اسم العميل (اختياري)
+        customer_phone: رقم هاتف العميل (اختياري)
+        delivery_address: عنوان التوصيل (اختياري)
+        customer_note: ملاحظات العميل (اختياري)
+        subtotal_amount: المبلغ الإجمالي قبل الخصم
+        discount_amount: مبلغ الخصم
+        tax_amount: مبلغ الضريبة
+        delivery_amount: مبلغ التوصيل
+        total_amount: المبلغ النهائي
+        items: قائمة عناصر الطلب (اختياري)
+    """
+    restaurant_id: int = Field(
+        ...,
+        description="معرف المطعم",
+        example=1,
+    )
+    branch_id: Optional[int] = Field(
+        None,
+        description="معرف الفرع",
+        example=1,
+    )
+    table_id: Optional[int] = Field(
+        None,
+        description="معرف الطاولة",
+        example=1,
+    )
+    employee_id: Optional[int] = Field(
+        None,
+        description="معرف الموظف",
+        example=1,
+    )
+    order_type: str = Field(
+        ...,
+        max_length=30,
+        description="نوع الطلب: dine_in, takeaway, delivery",
+        example="dine_in",
+    )
+    customer_name: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="اسم العميل",
+        example="أحمد محمد",
+    )
+    customer_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="رقم هاتف العميل",
+        example="0555123456",
+    )
+    delivery_address: Optional[str] = Field(
+        None,
+        description="عنوان التوصيل",
+        example="شارع الأندلس، الجزائر",
+    )
+    customer_note: Optional[str] = Field(
+        None,
+        description="ملاحظات العميل",
+        example="الرجاء إضافة صوص إضافي",
+    )
+    subtotal_amount: float = Field(
+        0,
+        description="المبلغ الإجمالي قبل الخصم",
+        example=100.00,
+    )
+    discount_amount: float = Field(
+        0,
+        description="مبلغ الخصم",
+        example=10.00,
+    )
+    tax_amount: float = Field(
+        0,
+        description="مبلغ الضريبة",
+        example=15.00,
+    )
+    delivery_amount: float = Field(
+        0,
+        description="مبلغ التوصيل",
+        example=5.00,
+    )
+    total_amount: float = Field(
+        0,
+        description="المبلغ النهائي",
+        example=110.00,
+    )
+    items: Optional[List[OrderItemPayload]] = Field(
+        None,
+        description="قائمة عناصر الطلب",
+        example=[
+            {
+                "product_id": 1,
+                "product_name": "بيتزا مارغريتا",
+                "unit_price": 25.00,
+                "quantity": 2,
+                "total_price": 50.00,
+                "options": [
+                    {
+                        "option_group_name": "حجم",
+                        "option_name": "كبير",
+                        "additional_price": 5.00,
+                    }
+                ],
+            }
+        ],
+    )
+
+
+# ==============================================
+# 📥 CREATE ORDER ITEM SCHEMA
+# ==============================================
+
+class OrderItemCreate(BaseModel):
+    """
+    مخطط إنشاء عنصر طلب.
+    
+    Attributes:
+        product_id: معرف المنتج
+        product_name: اسم المنتج
+        unit_price: سعر الوحدة
+        quantity: الكمية
+        total_price: السعر الإجمالي
+        options: قائمة الخيارات (اختياري)
+    """
+    product_id: int = Field(
+        ...,
+        description="معرف المنتج",
+        example=1,
+    )
+    product_name: str = Field(
+        ...,
+        max_length=255,
+        description="اسم المنتج",
+        example="بيتزا مارغريتا",
+    )
+    unit_price: float = Field(
+        ...,
+        gt=0,
+        description="سعر الوحدة",
+        example=25.00,
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="الكمية",
+        example=2,
+    )
+    total_price: float = Field(
+        ...,
+        gt=0,
+        description="السعر الإجمالي",
+        example=50.00,
+    )
+    options: Optional[List[OrderOptionPayload]] = Field(
+        None,
+        description="قائمة الخيارات",
+        example=[
+            {
+                "option_group_name": "حجم",
+                "option_name": "كبير",
+                "additional_price": 5.00,
+            }
+        ],
+    )
+
+
+# ==============================================
+# 📤 UPDATE SCHEMA
+# ==============================================
+
+class OrderUpdate(BaseModel):
+    """
+    مخطط تحديث الطلب - جميع الحقول اختيارية.
+    
+    Attributes:
+        branch_id: معرف الفرع
+        table_id: معرف الطاولة
+        employee_id: معرف الموظف
+        customer_name: اسم العميل
+        customer_phone: رقم هاتف العميل
+        delivery_address: عنوان التوصيل
+        customer_note: ملاحظات العميل
+        status: حالة الطلب
+        subtotal_amount: المبلغ الإجمالي قبل الخصم
+        discount_amount: مبلغ الخصم
+        tax_amount: مبلغ الضريبة
+        delivery_amount: مبلغ التوصيل
+        total_amount: المبلغ النهائي
+    """
+    branch_id: Optional[int] = Field(
+        None,
+        description="معرف الفرع",
+        example=1,
+    )
+    table_id: Optional[int] = Field(
+        None,
+        description="معرف الطاولة",
+        example=1,
+    )
+    employee_id: Optional[int] = Field(
+        None,
+        description="معرف الموظف",
+        example=1,
+    )
+    customer_name: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="اسم العميل",
+        example="أحمد محمد",
+    )
+    customer_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="رقم هاتف العميل",
+        example="0555123456",
+    )
+    delivery_address: Optional[str] = Field(
+        None,
+        description="عنوان التوصيل",
+        example="شارع الأندلس، الجزائر",
+    )
+    customer_note: Optional[str] = Field(
+        None,
+        description="ملاحظات العميل",
+        example="الرجاء إضافة صوص إضافي",
+    )
+    status: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="حالة الطلب",
+        example="confirmed",
+    )
+    subtotal_amount: Optional[float] = Field(
+        None,
+        gt=0,
+        description="المبلغ الإجمالي قبل الخصم",
+        example=100.00,
+    )
+    discount_amount: Optional[float] = Field(
+        None,
+        ge=0,
+        description="مبلغ الخصم",
+        example=10.00,
+    )
+    tax_amount: Optional[float] = Field(
+        None,
+        ge=0,
+        description="مبلغ الضريبة",
+        example=15.00,
+    )
+    delivery_amount: Optional[float] = Field(
+        None,
+        ge=0,
+        description="مبلغ التوصيل",
+        example=5.00,
+    )
+    total_amount: Optional[float] = Field(
+        None,
+        gt=0,
+        description="المبلغ النهائي",
+        example=110.00,
+    )
+
+
+# ==============================================
+# 📤 STATUS UPDATE SCHEMA
+# ==============================================
+
+class OrderStatusUpdate(BaseModel):
+    """
+    مخطط تحديث حالة الطلب.
+    
+    Attributes:
+        status: الحالة الجديدة
+        note: ملاحظة إضافية
+        employee_id: معرف الموظف
+    """
+    status: str = Field(
+        ...,
+        max_length=50,
+        description="الحالة الجديدة",
+        example="confirmed",
+    )
+    note: Optional[str] = Field(
+        None,
+        description="ملاحظة إضافية",
+        example="تم تأكيد الطلب",
+    )
+    employee_id: Optional[int] = Field(
+        None,
+        description="معرف الموظف",
+        example=1,
+    )
+
+
+# ==============================================
+# 📤 RESPONSE SCHEMA
+# ==============================================
+
+class OrderResponse(OrderBase):
+    """
+    مخطط استجابة الطلب - يحتوي على جميع الحقول بما فيها التواريخ.
+    
+    Attributes:
+        id: معرف الطلب
+        created_at: تاريخ الإنشاء
+        updated_at: تاريخ آخر تحديث
+    """
+    id: int = Field(
+        ...,
+        description="معرف الطلب",
+        example=1,
+    )
+    created_at: datetime = Field(
+        ...,
+        description="تاريخ الإنشاء",
+    )
+    updated_at: datetime = Field(
+        ...,
+        description="تاريخ آخر تحديث",
+    )
+
+    class Config:
+        """
+        إعدادات نموذج Pydantic.
+        """
+        from_attributes = True
+
+
+# ==============================================
+# 📋 ORDER WITH ITEMS RESPONSE
+# ==============================================
+
+class OrderWithItemsResponse(OrderResponse):
+    """
+    مخطط استجابة الطلب مع عناصره.
+    
+    Attributes:
+        items: قائمة عناصر الطلب
+        payments: قائمة مدفوعات الطلب
+        status_history: قائمة تاريخ الحالات
+    """
+    items: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="قائمة عناصر الطلب",
+    )
+    payments: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="قائمة مدفوعات الطلب",
+    )
+    status_history: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="قائمة تاريخ الحالات",
+    )
+
+
+# ==============================================
+# 📊 ORDER SUMMARY
+# ==============================================
+
+class OrderSummary(BaseModel):
+    """
+    مخطط ملخص الطلبات.
+    
+    يحتوي على إحصائيات موجزة عن الطلبات.
+    
+    Attributes:
+        total_orders: إجمالي عدد الطلبات
+        pending_orders: عدد الطلبات المعلقة
+        confirmed_orders: عدد الطلبات المؤكدة
+        preparing_orders: عدد الطلبات قيد التحضير
+        ready_orders: عدد الطلبات الجاهزة
+        delivering_orders: عدد الطلبات قيد التوصيل
+        delivered_orders: عدد الطلبات الموصلة
+        completed_orders: عدد الطلبات المكتملة
+        cancelled_orders: عدد الطلبات الملغاة
+        total_revenue: إجمالي الإيرادات
+        avg_order_value: متوسط قيمة الطلب
+    """
+    total_orders: int = Field(
+        ...,
+        description="إجمالي عدد الطلبات",
+        example=100,
+    )
+    pending_orders: int = Field(
+        ...,
+        description="عدد الطلبات المعلقة",
+        example=10,
+    )
+    confirmed_orders: int = Field(
+        ...,
+        description="عدد الطلبات المؤكدة",
+        example=15,
+    )
+    preparing_orders: int = Field(
+        ...,
+        description="عدد الطلبات قيد التحضير",
+        example=20,
+    )
+    ready_orders: int = Field(
+        ...,
+        description="عدد الطلبات الجاهزة",
+        example=5,
+    )
+    delivering_orders: int = Field(
+        ...,
+        description="عدد الطلبات قيد التوصيل",
+        example=8,
+    )
+    delivered_orders: int = Field(
+        ...,
+        description="عدد الطلبات الموصلة",
+        example=12,
+    )
+    completed_orders: int = Field(
+        ...,
+        description="عدد الطلبات المكتملة",
+        example=25,
+    )
+    cancelled_orders: int = Field(
+        ...,
+        description="عدد الطلبات الملغاة",
+        example=5,
+    )
+    total_revenue: float = Field(
+        ...,
+        description="إجمالي الإيرادات",
+        example=10000.00,
+    )
+    avg_order_value: float = Field(
+        ...,
+        description="متوسط قيمة الطلب",
+        example=100.00,
+    )

@@ -6,7 +6,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from app.services.business.registration_service import approve_registration
+from app.services.business.registration_request_service import approve_registration
 from app.repositories.registration_request_repo import create_registration_request
 
 

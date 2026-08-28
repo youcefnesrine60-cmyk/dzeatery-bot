@@ -12,7 +12,7 @@ from app.core.logger import logger
 from app.core.middleware.idempotency import Idempotency
 from app.core.middleware.rate_limit import rate_limit
 from app.helpers.ui_manager import UIManager
-from app.services.business.registration_service import approve_registration
+from app.services.business.registration_request_service import approve_registration
 
 # ==============================================
 # ✅ CONFIRM CALLBACK
