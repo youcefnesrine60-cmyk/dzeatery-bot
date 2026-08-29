@@ -1,6 +1,6 @@
 # ==============================================
 # 💰 PRICING SERVICE
-# Dz-Eatery Pricing Engine
+# MoulAI Pricing Engine
 # Async Compatible Version
 # ==============================================
 

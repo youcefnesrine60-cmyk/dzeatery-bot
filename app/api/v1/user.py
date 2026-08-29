@@ -4,19 +4,24 @@
 # تدير عمليات إنشاء واستعراض وتحديث وحذف المستخدمين
 # ==============================================
 
-from typing import (
-    List,
-    Optional,
-)
+from typing import Optional
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
     Query,
+    Path,
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 
 from app.core.database import get_db
 from app.core.logger import logger
@@ -28,14 +33,9 @@ from app.schemas.user import (
     UserSearch,
     UserSummary,
     UserUpdate,
+    UserListResponse,
 )
 from app.services.business.user_service import UserService
-
-# ==============================================
-# 🧩 TYPES
-# ==============================================
-
-UserList = List[UserResponse]
 
 # ==============================================
 # 🏗️ ROUTER
@@ -46,10 +46,10 @@ router = APIRouter(
     tags=["Users"],
 )
 
+
 # ==============================================
 # 🔧 DEPENDENCIES
 # ==============================================
-
 
 async def get_user_service(
     session: AsyncSession = Depends(get_db),
@@ -61,7 +61,7 @@ async def get_user_service(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        مثيل من UserService
+        UserService: مثيل من UserService
     """
     return UserService(session)
 
@@ -76,7 +76,7 @@ async def get_user_service(
 
 @router.get(
     "/",
-    response_model=UserList,
+    response_model=UserListResponse,
     summary="قائمة المستخدمين",
     description="الحصول على قائمة المستخدمين مع إمكانية التصفية",
 )
@@ -88,6 +88,8 @@ async def list_users(
     ),
     search: Optional[str] = Query(
         None,
+        min_length=1,
+        max_length=255,
         description="نص البحث (الاسم أو رقم الهاتف)",
     ),
     skip: int = Query(
@@ -98,11 +100,11 @@ async def list_users(
     limit: int = Query(
         100,
         ge=1,
-        le=100,
+        le=200,
         description="الحد الأقصى للسجلات",
     ),
     service: UserService = Depends(get_user_service),
-) -> UserList:
+) -> UserListResponse:
     """
     الحصول على قائمة المستخدمين.
     
@@ -114,7 +116,7 @@ async def list_users(
         service: خدمة المستخدمين
         
     Returns:
-        قائمة المستخدمين
+        UserListResponse: قائمة المستخدمين مع الإحصائيات
     """
     logger.info(
         "api_list_users",
@@ -126,30 +128,49 @@ async def list_users(
         },
     )
 
-    if search is not None:
-        users = await service.search(
-            query=search,
+    try:
+        if search is not None:
+            # استخدام طريقة البحث
+            users = await service.search_by_name(
+                name=search,
+                skip=skip,
+                limit=limit,
+            )
+            total = len(users)
+            
+        elif has_consent is not None:
+            users = await service.get_by_consent(
+                has_consent=has_consent,
+                skip=skip,
+                limit=limit,
+            )
+            total = len(users)
+            
+        else:
+            users = await service.repo.get_all(
+                skip=skip,
+                limit=limit,
+                order_by="created_at",
+                descending=True,
+            )
+            total = await service.repo.count()
+
+        return UserListResponse(
+            items=[UserResponse.model_validate(user) for user in users],
+            total=total,
             skip=skip,
             limit=limit,
-        )
-    elif has_consent is not None:
-        users = await service.get_by_consent(
-            has_consent=has_consent,
-            skip=skip,
-            limit=limit,
-        )
-    else:
-        users = await service.repo.get_all(
-            skip=skip,
-            limit=limit,
-            order_by="created_at",
-            descending=True,
         )
 
-    return [
-        UserResponse.model_validate(user)
-        for user in users
-    ]
+    except Exception as e:
+        logger.exception(
+            "api_list_users_error",
+            extra={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب قائمة المستخدمين",
+        )
 
 
 # ==============================================
@@ -164,7 +185,7 @@ async def list_users(
 )
 async def get_user(
     *,
-    user_id: int,
+    user_id: int = Path(..., ge=1, description="معرف المستخدم"),
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
@@ -175,28 +196,46 @@ async def get_user(
         service: خدمة المستخدمين
         
     Returns:
-        المستخدم المطلوب
+        UserResponse: المستخدم المطلوب
+        
+    Raises:
+        HTTPException: إذا لم يتم العثور على المستخدم
     """
     logger.info(
         "api_get_user",
         extra={"user_id": user_id},
     )
 
-    user = await service.get_by_id(
-        user_id=user_id,
-    )
+    try:
+        user = await service.get_by_id(
+            user_id=user_id,
+        )
+        return user
 
-    if not user:
+    except NotFoundError as e:
         logger.warning(
             "api_user_not_found",
-            extra={"user_id": user_id},
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail=str(e),
         )
-
-    return UserResponse.model_validate(user)
+    except Exception as e:
+        logger.exception(
+            "api_get_user_error",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب المستخدم",
+        )
 
 
 # ==============================================
@@ -211,7 +250,7 @@ async def get_user(
 )
 async def get_user_by_chat_id(
     *,
-    chat_id: int,
+    chat_id: int = Path(..., ge=1, description="معرف المستخدم في تيليجرام"),
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
@@ -222,28 +261,52 @@ async def get_user_by_chat_id(
         service: خدمة المستخدمين
         
     Returns:
-        المستخدم المطلوب
+        UserResponse: المستخدم المطلوب
+        
+    Raises:
+        HTTPException: إذا لم يتم العثور على المستخدم
     """
     logger.info(
         "api_get_user_by_chat_id",
         extra={"chat_id": chat_id},
     )
 
-    user = await service.get_by_chat_id(
-        chat_id=chat_id,
-    )
+    try:
+        user = await service.get_by_chat_id(
+            chat_id=chat_id,
+        )
 
-    if not user:
+        if not user:
+            raise NotFoundError(
+                message=f"المستخدم بـ chat_id '{chat_id}' غير موجود",
+            )
+
+        return user
+
+    except NotFoundError as e:
         logger.warning(
             "api_user_not_found_by_chat_id",
-            extra={"chat_id": chat_id},
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail=str(e),
         )
-
-    return UserResponse.model_validate(user)
+    except Exception as e:
+        logger.exception(
+            "api_get_user_by_chat_id_error",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب المستخدم",
+        )
 
 
 # ==============================================
@@ -270,7 +333,10 @@ async def create_user(
         service: خدمة المستخدمين
         
     Returns:
-        المستخدم المنشأ
+        UserResponse: المستخدم المنشأ
+        
+    Raises:
+        HTTPException: إذا حدث خطأ أثناء الإنشاء
     """
     logger.info(
         "api_create_user",
@@ -282,26 +348,46 @@ async def create_user(
 
     try:
         user = await service.create_user(
-            chat_id=data.chat_id,
-            consent=data.consent,
-            customer_name=data.customer_name,
-            customer_phone=data.customer_phone,
+            user_data=data,
         )
+        return user
 
-    except ValueError as e:
+    except ConflictError as e:
         logger.warning(
-            "api_create_user_failed",
+            "api_create_user_conflict",
             extra={
                 "chat_id": data.chat_id,
                 "error": str(e),
             },
         )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(e),
         )
-
-    return UserResponse.model_validate(user)
+    except ValidationError as e:
+        logger.warning(
+            "api_create_user_validation_error",
+            extra={
+                "chat_id": data.chat_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_create_user_error",
+            extra={
+                "chat_id": data.chat_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء إنشاء المستخدم",
+        )
 
 
 # ==============================================
@@ -316,7 +402,7 @@ async def create_user(
 )
 async def update_user(
     *,
-    user_id: int,
+    user_id: int = Path(..., ge=1, description="معرف المستخدم"),
     data: UserUpdate,
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
@@ -329,7 +415,10 @@ async def update_user(
         service: خدمة المستخدمين
         
     Returns:
-        المستخدم المحدث
+        UserResponse: المستخدم المحدث
+        
+    Raises:
+        HTTPException: إذا لم يتم العثور على المستخدم
     """
     logger.info(
         "api_update_user",
@@ -339,29 +428,55 @@ async def update_user(
         },
     )
 
-    # التحقق من وجود المستخدم
-    existing = await service.get_by_id(
-        user_id=user_id,
-    )
+    try:
+        # التحقق من وجود المستخدم
+        existing = await service.get_by_id(
+            user_id=user_id,
+        )
 
-    if not existing:
+        # تحديث المستخدم
+        user = await service.update_user(
+            chat_id=existing.chat_id,
+            update_data=data,
+        )
+        return user
+
+    except NotFoundError as e:
         logger.warning(
             "api_user_not_found_for_update",
-            extra={"user_id": user_id},
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail=str(e),
         )
-
-    # تحديث المستخدم
-    update_data = data.model_dump(exclude_unset=True)
-    user = await service.repo.update(
-        id=user_id,
-        data=update_data,
-    )
-
-    return UserResponse.model_validate(user)
+    except ValidationError as e:
+        logger.warning(
+            "api_update_user_validation_error",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_update_user_error",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء تحديث المستخدم",
+        )
 
 
 # ==============================================
@@ -376,7 +491,7 @@ async def update_user(
 )
 async def update_user_consent(
     *,
-    chat_id: int,
+    chat_id: int = Path(..., ge=1, description="معرف المستخدم في تيليجرام"),
     data: UserConsentUpdate,
     service: UserService = Depends(get_user_service),
 ) -> ConsentResponse:
@@ -389,7 +504,10 @@ async def update_user_consent(
         service: خدمة المستخدمين
         
     Returns:
-        حالة الموافقة المحدثة
+        ConsentResponse: حالة الموافقة المحدثة
+        
+    Raises:
+        HTTPException: إذا لم يتم العثور على المستخدم
     """
     logger.info(
         "api_update_user_consent",
@@ -399,32 +517,42 @@ async def update_user_consent(
         },
     )
 
-    if data.consent:
-        user = await service.give_consent(
+    try:
+        user = await service.update_consent(
             chat_id=chat_id,
+            consent_data=data,
         )
-        message = "User has given consent"
-    else:
-        user = await service.revoke_consent(
-            chat_id=chat_id,
-        )
-        message = "User has revoked consent"
 
-    if not user:
+        return ConsentResponse(
+            chat_id=chat_id,
+            has_consent=user.consent,
+            message=f"تم {'منح' if user.consent else 'إلغاء'} الموافقة بنجاح",
+        )
+
+    except NotFoundError as e:
         logger.warning(
             "api_user_not_found_for_consent",
-            extra={"chat_id": chat_id},
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail=str(e),
         )
-
-    return ConsentResponse(
-        chat_id=chat_id,
-        has_consent=data.consent,
-        message=message,
-    )
+    except Exception as e:
+        logger.exception(
+            "api_update_user_consent_error",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء تحديث موافقة المستخدم",
+        )
 
 
 # ==============================================
@@ -439,7 +567,7 @@ async def update_user_consent(
 )
 async def check_user_consent(
     *,
-    chat_id: int,
+    chat_id: int = Path(..., ge=1, description="معرف المستخدم في تيليجرام"),
     service: UserService = Depends(get_user_service),
 ) -> ConsentResponse:
     """
@@ -450,78 +578,36 @@ async def check_user_consent(
         service: خدمة المستخدمين
         
     Returns:
-        حالة الموافقة
+        ConsentResponse: حالة الموافقة
     """
     logger.info(
         "api_check_user_consent",
         extra={"chat_id": chat_id},
     )
 
-    has_consent = await service.has_consent(
-        chat_id=chat_id,
-    )
-
-    return ConsentResponse(
-        chat_id=chat_id,
-        has_consent=has_consent,
-        message="User has consent" if has_consent else "User has not given consent",
-    )
-
-
-# ==============================================
-# DELETE USER
-# ==============================================
-
-@router.delete(
-    "/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="حذف مستخدم",
-    description="حذف مستخدم موجود",
-)
-async def delete_user(
-    *,
-    user_id: int,
-    service: UserService = Depends(get_user_service),
-) -> None:
-    """
-    حذف مستخدم موجود.
-    
-    Args:
-        user_id: معرف المستخدم
-        service: خدمة المستخدمين
-    """
-    logger.info(
-        "api_delete_user",
-        extra={"user_id": user_id},
-    )
-
-    # التحقق من وجود المستخدم
-    existing = await service.get_by_id(
-        user_id=user_id,
-    )
-
-    if not existing:
-        logger.warning(
-            "api_user_not_found_for_delete",
-            extra={"user_id": user_id},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+    try:
+        has_consent = await service.has_consent(
+            chat_id=chat_id,
         )
 
-    deleted = await service.repo.delete(id=user_id)
+        return ConsentResponse(
+            chat_id=chat_id,
+            has_consent=has_consent,
+            message="المستخدم لديه موافقة" if has_consent else "المستخدم ليس لديه موافقة",
+        )
 
-    if not deleted:
+    except Exception as e:
+        logger.exception(
+            "api_check_user_consent_error",
+            extra={
+                "chat_id": chat_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete user",
+            detail="حدث خطأ أثناء التحقق من موافقة المستخدم",
         )
-
-    logger.info(
-        "api_user_deleted_successfully",
-        extra={"user_id": user_id},
-    )
 
 
 # ==============================================
@@ -530,7 +616,7 @@ async def delete_user(
 
 @router.post(
     "/search",
-    response_model=UserList,
+    response_model=UserListResponse,
     summary="بحث عن مستخدمين",
     description="البحث عن مستخدمين بالاسم أو رقم الهاتف",
 )
@@ -538,7 +624,7 @@ async def search_users(
     *,
     data: UserSearch,
     service: UserService = Depends(get_user_service),
-) -> UserList:
+) -> UserListResponse:
     """
     البحث عن مستخدمين.
     
@@ -547,7 +633,7 @@ async def search_users(
         service: خدمة المستخدمين
         
     Returns:
-        قائمة المستخدمين المطابقين للبحث
+        UserListResponse: قائمة المستخدمين المطابقين للبحث مع الإحصائيات
     """
     logger.info(
         "api_search_users",
@@ -558,16 +644,24 @@ async def search_users(
         },
     )
 
-    users = await service.search(
-        query=data.query,
-        skip=data.skip,
-        limit=data.limit,
-    )
+    try:
+        result = await service.search(
+            search_params=data,
+        )
+        return result
 
-    return [
-        UserResponse.model_validate(user)
-        for user in users
-    ]
+    except Exception as e:
+        logger.exception(
+            "api_search_users_error",
+            extra={
+                "query": data.query,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء البحث عن المستخدمين",
+        )
 
 
 # ==============================================
@@ -591,18 +685,92 @@ async def get_user_summary(
         service: خدمة المستخدمين
         
     Returns:
-        ملخص إحصائيات المستخدمين
+        UserSummary: ملخص إحصائيات المستخدمين
     """
     logger.info("api_get_user_summary")
 
-    stats = await service.get_user_stats()
+    try:
+        summary = await service.get_user_stats()
+        return summary
 
-    return UserSummary(
-        total_users=stats["total_users"],
-        users_with_consent=stats["users_with_consent"],
-        users_without_consent=stats["users_without_consent"],
-        users_with_name=stats["users_with_name"],
-        users_with_phone=stats["users_with_phone"],
-        consent_rate=stats["consent_rate"],
-        profile_completion_rate=stats["profile_completion_rate"],
+    except Exception as e:
+        logger.exception(
+            "api_get_user_summary_error",
+            extra={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب ملخص المستخدمين",
+        )
+
+
+# ==============================================
+# DELETE USER
+# ==============================================
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="حذف مستخدم",
+    description="حذف مستخدم موجود",
+)
+async def delete_user(
+    *,
+    user_id: int = Path(..., ge=1, description="معرف المستخدم"),
+    service: UserService = Depends(get_user_service),
+) -> None:
+    """
+    حذف مستخدم موجود.
+    
+    Args:
+        user_id: معرف المستخدم
+        service: خدمة المستخدمين
+        
+    Raises:
+        HTTPException: إذا لم يتم العثور على المستخدم
+    """
+    logger.info(
+        "api_delete_user",
+        extra={"user_id": user_id},
+    )
+
+    try:
+        # التحقق من وجود المستخدم
+        user = await service.get_by_id(
+            user_id=user_id,
+        )
+
+        # حذف المستخدم
+        await service.delete_user(
+            chat_id=user.chat_id,
+        )
+
+    except NotFoundError as e:
+        logger.warning(
+            "api_user_not_found_for_delete",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_delete_user_error",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء حذف المستخدم",
+        )
+
+    logger.info(
+        "api_user_deleted_successfully",
+        extra={"user_id": user_id},
     )

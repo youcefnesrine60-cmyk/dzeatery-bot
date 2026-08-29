@@ -1,13 +1,24 @@
 # ==============================================
-# 🚀 DZ-EATERY MAIN APPLICATION
+# MoulAI Platform - Agent-as-a-Service
+# Author: Youcef Nesrine
+# License: CC BY-NC-ND 4.0
+# Copyright (c) 2026 Youcef Nesrine
 # ==============================================
-"""التطبيق الرئيسي لمنصة DZ-Eatery."""
+
+# ==============================================
+# 🚀 MoulAI MAIN APPLICATION
+# ==============================================
+"""التطبيق الرئيسي لمنصة مولاي."""
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# ==============================================
+# 📦 IMPORT ROUTERS
+# ==============================================
 
 from app.api.v1.registration_request import router as registration_requests_router
 from app.api.v1.restaurants import router as restaurants_router
@@ -26,6 +37,7 @@ from app.api.v1.product_option import router as product_options_router
 from app.api.v1.user import router as users_router
 from app.api.webhook import router as webhook_router
 from app.api.webhook import register_routes
+
 from app.core.config import settings
 from app.core.db import init_db, close_db
 from app.core.logger import logger
@@ -95,9 +107,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # ==============================================
 
 app = FastAPI(
-    title="DZ Eatery Bot",
+    title= "MoulAI - مولاي",
     version="1.0.0",
-    description="🤖 AI Agent Platform for Restaurants",
+    description="Platform - Agent-as-a-Service",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     APP_ENV: str = "development"
     DEBUG: bool = True
-    APP_NAME: str = "DZ-EATERY"
+    APP_NAME: str = "MoulAI"
     APP_VERSION: str = "1.0.0"
     APP_URL: str = "https://onrender.com"
 
