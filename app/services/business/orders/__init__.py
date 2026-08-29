@@ -65,13 +65,14 @@ from app.services.business.orders.totals import (
     calculate_order_totals,
     update_order_totals as update_totals,
     get_order_totals,
+    recalculate_order_totals as recalculate,
 )
 
 # ==============================================
 # 📜 STATUS HISTORY
 # ==============================================
 
-from app.services.business.orders.status import (
+from app.services.business.orders.status_history import (
     get_status_history,
     get_order_timeline,
     get_last_status,
@@ -86,6 +87,7 @@ from app.services.business.orders.status import (
 
 from app.services.business.orders.complete import (
     complete_order,
+    complete_order_with_delivery_confirmation,
 )
 
 # ==============================================
@@ -94,6 +96,7 @@ from app.services.business.orders.complete import (
 
 from app.services.business.orders.cancel import (
     cancel_order,
+    cancel_order_with_refund,
 )
 
 # ==============================================
@@ -170,6 +173,7 @@ __all__ = [
     "calculate_order_totals",
     "update_totals",
     "get_order_totals",
+    "recalculate",
     
     # Status History
     "get_status_history",
@@ -181,9 +185,11 @@ __all__ = [
     
     # Complete
     "complete_order",
+    "complete_order_with_delivery_confirmation",
     
     # Cancel
     "cancel_order",
+    "cancel_order_with_refund",
     
     # Paid
     "mark_order_paid",

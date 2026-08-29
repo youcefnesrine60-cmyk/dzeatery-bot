@@ -13,6 +13,9 @@ from typing import (
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import ValidationError
+
 from app.core.logger import logger
 from app.repositories.order_item_options_repo import (
     OrderItemOptionsRepository,
@@ -37,6 +40,7 @@ from app.services.business.orders.constants import ORDERS_FEATURE_ID
 
 OrderItemPayload = Dict[str, Any]
 OrderItemOptionPayload = Dict[str, Any]
+
 
 # ==============================================
 # ➕ CREATE ORDER
@@ -83,8 +87,31 @@ async def create_restaurant_order(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        معرف الطلب الجديد
+        int: معرف الطلب الجديد
+        
+    Raises:
+        ValidationError: إذا كانت البيانات غير صالحة
     """
+    # 1️⃣ التحقق من صحة البيانات
+    if not order_number:
+        raise ValidationError(
+            message="رقم الطلب مطلوب",
+        )
+
+    if order_type not in ["dine_in", "delivery", "takeaway"]:
+        raise ValidationError(
+            message=f"نوع الطلب '{order_type}' غير صالح",
+            details={
+                "order_type": order_type,
+                "valid_types": ["dine_in", "delivery", "takeaway"],
+            },
+        )
+
+    if total_amount < 0:
+        raise ValidationError(
+            message="المبلغ الإجمالي لا يمكن أن يكون سالباً",
+        )
+
     logger.info(
         "create_restaurant_order_started",
         extra={
@@ -94,7 +121,7 @@ async def create_restaurant_order(
         },
     )
 
-    # إنشاء الطلب
+    # 2️⃣ إنشاء الطلب
     orders_repo = OrdersRepository(session=session)
 
     data: Dict[str, Any] = {
@@ -114,31 +141,31 @@ async def create_restaurant_order(
         "tax_amount": tax_amount,
         "delivery_amount": delivery_amount,
         "total_amount": total_amount,
+        "is_paid": False,
     }
 
     order = await orders_repo.create(data=data)
     order_id = order.id
 
-    # إنشاء سجل الحالة الأولي
+    # 3️⃣ إنشاء سجل الحالة الأولي
     history_repo = OrderStatusHistoryRepository(session=session)
 
     await history_repo.create(
         data={
             "order_id": order_id,
-            "old_status": None,
-            "new_status": "pending",
-            "changed_by_employee_id": employee_id,
-            "note": "order_created",
+            "status": "pending",
+            "employee_id": employee_id,
+            "note": f"تم إنشاء الطلب #{order_number}",
         },
     )
 
-    # زيادة عداد استخدام الميزة
+    # 4️⃣ زيادة عداد استخدام الميزة
     await increase_usage(
         restaurant_id=restaurant_id,
         feature_id=ORDERS_FEATURE_ID,
     )
 
-    # تحديث مقاييس المطعم
+    # 5️⃣ تحديث مقاييس المطعم
     await _update_restaurant_metrics(
         session=session,
         restaurant_id=restaurant_id,
@@ -202,8 +229,32 @@ async def create_order_with_items(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        معرف الطلب الجديد
+        int: معرف الطلب الجديد
+        
+    Raises:
+        ValidationError: إذا كانت البيانات غير صالحة أو كانت قائمة العناصر فارغة
+        NotFoundError: إذا لم يتم العثور على المطعم
     """
+    # 1️⃣ التحقق من صحة البيانات
+    if order_type not in ["dine_in", "delivery", "takeaway"]:
+        raise ValidationError(
+            message=f"نوع الطلب '{order_type}' غير صالح",
+            details={
+                "order_type": order_type,
+                "valid_types": ["dine_in", "delivery", "takeaway"],
+            },
+        )
+
+    if not items:
+        raise ValidationError(
+            message="الطلب يجب أن يحتوي على عنصر واحد على الأقل",
+        )
+
+    if total_amount < 0:
+        raise ValidationError(
+            message="المبلغ الإجمالي لا يمكن أن يكون سالباً",
+        )
+
     logger.info(
         "create_order_with_items_started",
         extra={
@@ -213,19 +264,31 @@ async def create_order_with_items(
         },
     )
 
-    # إنشاء الطلب
+    # 2️⃣ إنشاء الطلب
     orders_repo = OrdersRepository(session=session)
     order_items_repo = OrderItemsRepository(session=session)
     options_repo = OrderItemOptionsRepository(session=session)
     history_repo = OrderStatusHistoryRepository(session=session)
     counters_repo = RestaurantOrderCountersRepository(session=session)
 
-    # توليد رقم الطلب
-    order_number = await counters_repo.generate_next_number(
+    # 3️⃣ توليد رقم الطلب
+    # التحقق من وجود عداد الطلبات
+    counter = await counters_repo.get_by_restaurant_id(
         restaurant_id=restaurant_id,
     )
 
-    # إنشاء الطلب
+    if not counter:
+        # إنشاء عداد جديد إذا لم يكن موجوداً
+        await counters_repo.create_counter(restaurant_id=restaurant_id)
+        counter = await counters_repo.get_by_restaurant_id(
+            restaurant_id=restaurant_id,
+        )
+
+    order_number = await counters_repo.generate_next_order_number(
+        restaurant_id=restaurant_id,
+    )
+
+    # 4️⃣ إنشاء الطلب
     order_data: Dict[str, Any] = {
         "restaurant_id": restaurant_id,
         "branch_id": branch_id,
@@ -243,17 +306,29 @@ async def create_order_with_items(
         "tax_amount": tax_amount,
         "delivery_amount": delivery_amount,
         "total_amount": total_amount,
+        "is_paid": False,
     }
 
     order = await orders_repo.create(data=order_data)
     order_id = order.id
 
-    # إنشاء عناصر الطلب
+    # 5️⃣ إنشاء عناصر الطلب
     for item in items:
+        # التحقق من صحة العنصر
+        if not item.get("product_id"):
+            raise ValidationError(
+                message="معرف المنتج مطلوب لكل عنصر",
+            )
+
+        if item.get("quantity", 0) <= 0:
+            raise ValidationError(
+                message=f"الكمية يجب أن تكون أكبر من الصفر للمنتج {item.get('product_name', 'غير معروف')}",
+            )
+
         item_data: Dict[str, Any] = {
             "order_id": order_id,
             "product_id": item["product_id"],
-            "product_name": item["product_name"],
+            "product_name": item.get("product_name", "منتج غير معروف"),
             "unit_price": item["unit_price"],
             "quantity": item["quantity"],
             "total_price": item["total_price"],
@@ -262,10 +337,20 @@ async def create_order_with_items(
         order_item = await order_items_repo.create(data=item_data)
         order_item_id = order_item.id
 
-        # إنشاء خيارات العنصر
+        # 6️⃣ إنشاء خيارات العنصر
         options = item.get("options", [])
 
         for option in options:
+            if not option.get("option_group_name") or not option.get("option_name"):
+                logger.warning(
+                    "invalid_option_skipped",
+                    extra={
+                        "order_item_id": order_item_id,
+                        "option": option,
+                    },
+                )
+                continue
+
             option_data: Dict[str, Any] = {
                 "order_item_id": order_item_id,
                 "option_group_name": option["option_group_name"],
@@ -275,25 +360,24 @@ async def create_order_with_items(
 
             await options_repo.create(data=option_data)
 
-    # إنشاء سجل الحالة الأولي
+    # 7️⃣ إنشاء سجل الحالة الأولي
     await history_repo.create(
         data={
             "order_id": order_id,
-            "old_status": None,
-            "new_status": "pending",
-            "changed_by_employee_id": employee_id,
-            "note": "Order Created",
+            "status": "pending",
+            "employee_id": employee_id,
+            "note": f"تم إنشاء الطلب #{order_number} مع {len(items)} عنصر",
         },
     )
 
-    # تحديث مقاييس المطعم
+    # 8️⃣ تحديث مقاييس المطعم
     await _update_restaurant_metrics(
         session=session,
         restaurant_id=restaurant_id,
         order_total=total_amount,
     )
 
-    # زيادة عداد استخدام الميزة
+    # 9️⃣ زيادة عداد استخدام الميزة
     await increase_usage(
         restaurant_id=restaurant_id,
         feature_id=ORDERS_FEATURE_ID,
@@ -338,7 +422,9 @@ async def _update_restaurant_metrics(
         metrics_repo = RestaurantMetricsRepository(session=session)
 
         # الحصول على المقاييس الحالية
-        metrics = await metrics_repo.get_by_id(id=restaurant_id)
+        metrics = await metrics_repo.get_by_restaurant_id(
+            restaurant_id=restaurant_id,
+        )
 
         if metrics:
             # تحديث المقاييس الموجودة
@@ -353,10 +439,10 @@ async def _update_restaurant_metrics(
                 new_avg = order_total
 
             await metrics_repo.update(
-                id=restaurant_id,
+                id=metrics.restaurant_id,
                 data={
                     "monthly_orders": new_monthly_orders,
-                    "average_order_value": new_avg,
+                    "average_order_value": round(new_avg, 2),
                 },
             )
         else:
@@ -367,7 +453,7 @@ async def _update_restaurant_metrics(
                     "products_count": 0,
                     "categories_count": 0,
                     "monthly_orders": 1,
-                    "average_order_value": order_total,
+                    "average_order_value": round(order_total, 2),
                 },
             )
 

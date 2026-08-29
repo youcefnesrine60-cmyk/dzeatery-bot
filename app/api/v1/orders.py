@@ -14,9 +14,17 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Path,
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 
 from app.core.database import get_db
 from app.core.logger import logger
@@ -27,28 +35,17 @@ from app.schemas.order import (
     OrderSummary,
     OrderUpdate,
     OrderWithItemsResponse,
+    OrderListResponse,
 )
-from app.services.business.orders import (
-    add_item_to_order,
-    cancel_order,
-    change_order_status,
-    complete_order,
-    create_restaurant_order,
-    get_order_items_list,
-    get_order_with_details,
-    get_orders,
-    get_orders_by_status,
-    get_restaurant_order,
-    mark_order_paid,
-    remove_order,
-    remove_item_from_order,
-)
+from app.services.business.order_service import OrderService
+from app.services.business.order_items_service import OrderItemsService
 
 # ==============================================
 # 🧩 TYPES
 # ==============================================
 
 OrderList = List[OrderResponse]
+
 
 # ==============================================
 # 🏗️ ROUTER
@@ -58,6 +55,41 @@ router = APIRouter(
     prefix="/orders",
     tags=["Orders"],
 )
+
+
+# ==============================================
+# 🔧 DEPENDENCIES
+# ==============================================
+
+async def get_order_service(
+    session: AsyncSession = Depends(get_db),
+) -> OrderService:
+    """
+    الحصول على خدمة الطلبات.
+    
+    Args:
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        OrderService: مثيل من OrderService
+    """
+    return OrderService(session)
+
+
+async def get_order_items_service(
+    session: AsyncSession = Depends(get_db),
+) -> OrderItemsService:
+    """
+    الحصول على خدمة عناصر الطلبات.
+    
+    Args:
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        OrderItemsService: مثيل من OrderItemsService
+    """
+    return OrderItemsService(session)
+
 
 # ==============================================
 # 📋 ENDPOINTS
@@ -69,7 +101,7 @@ router = APIRouter(
 
 @router.get(
     "/",
-    response_model=OrderList,
+    response_model=OrderListResponse,
     summary="قائمة الطلبات",
     description="الحصول على قائمة الطلبات مع إمكانية التصفية",
 )
@@ -78,10 +110,13 @@ async def list_orders(
     restaurant_id: Optional[int] = Query(
         None,
         description="معرف المطعم",
+        ge=1,
     ),
     status: Optional[str] = Query(
         None,
         description="حالة الطلب",
+        min_length=1,
+        max_length=50,
     ),
     skip: int = Query(
         0,
@@ -91,11 +126,11 @@ async def list_orders(
     limit: int = Query(
         100,
         ge=1,
-        le=100,
+        le=200,
         description="الحد الأقصى للسجلات",
     ),
-    session: AsyncSession = Depends(get_db),
-) -> OrderList:
+    service: OrderService = Depends(get_order_service),
+) -> OrderListResponse:
     """
     الحصول على قائمة الطلبات.
     
@@ -104,10 +139,10 @@ async def list_orders(
         status: حالة الطلب للتصفية
         skip: عدد السجلات للتخطي
         limit: الحد الأقصى للسجلات
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        قائمة الطلبات
+        OrderListResponse: قائمة الطلبات مع الإحصائيات
     """
     logger.info(
         "api_list_orders",
@@ -119,32 +154,46 @@ async def list_orders(
         },
     )
 
-    if restaurant_id is None:
+    try:
+        if restaurant_id is None:
+            raise ValidationError(
+                message="معرف المطعم مطلوب",
+            )
+
+        if status is not None:
+            result = await service.get_by_status(
+                restaurant_id=restaurant_id,
+                status=status,
+                skip=skip,
+                limit=limit,
+            )
+        else:
+            result = await service.get_by_restaurant(
+                restaurant_id=restaurant_id,
+                skip=skip,
+                limit=limit,
+            )
+
+        return result
+
+    except ValidationError as e:
+        logger.warning(
+            "api_list_orders_validation_error",
+            extra={"error": str(e)},
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="restaurant_id is required",
+            detail=str(e),
         )
-
-    if status is not None:
-        orders = await get_orders_by_status(
-            restaurant_id=restaurant_id,
-            status=status,
-            session=session,
-            skip=skip,
-            limit=limit,
+    except Exception as e:
+        logger.exception(
+            "api_list_orders_error",
+            extra={"error": str(e)},
         )
-    else:
-        orders = await get_orders(
-            restaurant_id=restaurant_id,
-            session=session,
-            skip=skip,
-            limit=limit,
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب قائمة الطلبات",
         )
-
-    return [
-        OrderResponse.model_validate(order)
-        for order in orders
-    ]
 
 
 # ==============================================
@@ -159,18 +208,20 @@ async def list_orders(
 )
 async def get_order(
     *,
-    order_id: int,
-    session: AsyncSession = Depends(get_db),
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
+    service: OrderService = Depends(get_order_service),
+    items_service: OrderItemsService = Depends(get_order_items_service),
 ) -> OrderWithItemsResponse:
     """
     الحصول على طلب بالمعرف مع جميع تفاصيله.
     
     Args:
         order_id: معرف الطلب
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
+        items_service: خدمة عناصر الطلبات
         
     Returns:
-        الطلب مع جميع تفاصيله
+        OrderWithItemsResponse: الطلب مع جميع تفاصيله
         
     Raises:
         HTTPException: إذا لم يتم العثور على الطلب
@@ -180,33 +231,67 @@ async def get_order(
         extra={"order_id": order_id},
     )
 
-    # جلب الطلب مع العلاقات
-    order = await get_order_with_details(
-        order_id=order_id,
-        session=session,
-    )
+    try:
+        # جلب الطلب مع العلاقات
+        order = await service.get_with_details(
+            order_id=order_id,
+        )
 
-    if not order:
+        # جلب عناصر الطلب
+        items_result = await items_service.get_by_order(
+            order_id=order_id,
+        )
+
+        # بناء الاستجابة
+        return OrderWithItemsResponse(
+            id=order.id,
+            restaurant_id=order.restaurant_id,
+            branch_id=order.branch_id,
+            table_id=order.table_id,
+            employee_id=order.employee_id,
+            order_number=order.order_number,
+            order_type=order.order_type,
+            customer_name=order.customer_name,
+            customer_phone=order.customer_phone,
+            delivery_address=order.delivery_address,
+            customer_note=order.customer_note,
+            subtotal_amount=order.subtotal_amount,
+            discount_amount=order.discount_amount,
+            tax_amount=order.tax_amount,
+            delivery_amount=order.delivery_amount,
+            total_amount=order.total_amount,
+            status=order.status,
+            payment_status=order.payment_status,
+            is_paid=order.is_paid,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+            items=items_result.items,
+        )
+
+    except NotFoundError as e:
         logger.warning(
             "api_order_not_found",
-            extra={"order_id": order_id},
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
+            detail=str(e),
         )
-
-    # جلب عناصر الطلب
-    items = await get_order_items_list(
-        order_id=order_id,
-        session=session,
-    )
-
-    # بناء الاستجابة
-    response = OrderWithItemsResponse.model_validate(order)
-    response.items = [item.to_dict() for item in items] if items else []
-
-    return response
+    except Exception as e:
+        logger.exception(
+            "api_get_order_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب الطلب",
+        )
 
 
 # ==============================================
@@ -223,17 +308,22 @@ async def get_order(
 async def create_order(
     *,
     data: OrderCreate,
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
+    items_service: OrderItemsService = Depends(get_order_items_service),
 ) -> OrderResponse:
     """
     إنشاء طلب جديد.
     
     Args:
         data: بيانات الطلب
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
+        items_service: خدمة عناصر الطلبات
         
     Returns:
-        الطلب المنشأ
+        OrderResponse: الطلب المنشأ
+        
+    Raises:
+        HTTPException: إذا حدث خطأ أثناء الإنشاء
     """
     logger.info(
         "api_create_order",
@@ -243,47 +333,79 @@ async def create_order(
         },
     )
 
-    # إنشاء الطلب
-    order_id = await create_restaurant_order(
-        restaurant_id=data.restaurant_id,
-        branch_id=data.branch_id,
-        table_id=data.table_id,
-        employee_id=data.employee_id,
-        order_number="",  # سيتم توليده تلقائياً
-        order_type=data.order_type,
-        customer_name=data.customer_name,
-        customer_phone=data.customer_phone,
-        delivery_address=data.delivery_address,
-        customer_note=data.customer_note,
-        subtotal_amount=data.subtotal_amount,
-        discount_amount=data.discount_amount,
-        tax_amount=data.tax_amount,
-        delivery_amount=data.delivery_amount,
-        total_amount=data.total_amount,
-        session=session,
-    )
+    try:
+        # إنشاء الطلب
+        order = await service.create_order(
+            order_data=data,
+        )
 
-    # إضافة عناصر الطلب
-    if data.items:
-        for item in data.items:
-            await add_item_to_order(
-                order_id=order_id,
-                product_id=item["product_id"],
-                product_name=item["product_name"],
-                unit_price=item["unit_price"],
-                quantity=item["quantity"],
-                total_price=item["total_price"],
-                options=item.get("options"),
-                session=session,
-            )
+        # إضافة عناصر الطلب
+        if data.items:
+            for item_data in data.items:
+                await items_service.add_item(
+                    item_data=item_data,
+                )
 
-    # جلب الطلب المنشأ
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
+        # تحديث إجمالي الطلب
+        await service.recalculate_order_total(
+            order_id=order.id,
+        )
 
-    return OrderResponse.model_validate(order)
+        # جلب الطلب المحدث
+        updated_order = await service.get_by_id(
+            order_id=order.id,
+        )
+
+        return updated_order
+
+    except NotFoundError as e:
+        logger.warning(
+            "api_create_order_not_found",
+            extra={
+                "restaurant_id": data.restaurant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except ConflictError as e:
+        logger.warning(
+            "api_create_order_conflict",
+            extra={
+                "restaurant_id": data.restaurant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except ValidationError as e:
+        logger.warning(
+            "api_create_order_validation_error",
+            extra={
+                "restaurant_id": data.restaurant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_create_order_error",
+            extra={
+                "restaurant_id": data.restaurant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء إنشاء الطلب",
+        )
 
 
 # ==============================================
@@ -298,9 +420,9 @@ async def create_order(
 )
 async def update_order(
     *,
-    order_id: int,
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
     data: OrderUpdate,
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
     """
     تحديث طلب موجود.
@@ -308,13 +430,13 @@ async def update_order(
     Args:
         order_id: معرف الطلب
         data: بيانات التحديث
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        الطلب المحدث
+        OrderResponse: الطلب المحدث
         
     Raises:
-        HTTPException: إذا لم يتم العثور على الطلب
+        HTTPException: إذا لم يتم العثور على الطلب أو حدث تعارض
     """
     logger.info(
         "api_update_order",
@@ -324,33 +446,49 @@ async def update_order(
         },
     )
 
-    # التحقق من وجود الطلب
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
+    try:
+        order = await service.update_order(
+            order_id=order_id,
+            update_data=data,
+        )
+        return order
 
-    if not order:
+    except NotFoundError as e:
         logger.warning(
             "api_order_not_found_for_update",
-            extra={"order_id": order_id},
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
+            detail=str(e),
         )
-
-    # تحديث الطلب
-    from app.repositories.orders_repo import OrdersRepository
-
-    orders_repo = OrdersRepository(session=session)
-    update_data = data.model_dump(exclude_unset=True)
-    updated_order = await orders_repo.update(
-        id=order_id,
-        data=update_data,
-    )
-
-    return OrderResponse.model_validate(updated_order)
+    except ValidationError as e:
+        logger.warning(
+            "api_update_order_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_update_order_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء تحديث الطلب",
+        )
 
 
 # ==============================================
@@ -365,9 +503,9 @@ async def update_order(
 )
 async def update_order_status(
     *,
-    order_id: int,
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
     data: OrderStatusUpdate,
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
     """
     تغيير حالة الطلب.
@@ -375,10 +513,10 @@ async def update_order_status(
     Args:
         order_id: معرف الطلب
         data: بيانات تحديث الحالة
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        الطلب المحدث
+        OrderResponse: الطلب المحدث
         
     Raises:
         HTTPException: إذا لم يتم العثور على الطلب
@@ -392,32 +530,49 @@ async def update_order_status(
         },
     )
 
-    # التحقق من وجود الطلب
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
+    try:
+        order = await service.update_order_status(
+            order_id=order_id,
+            status_data=data,
+        )
+        return order
 
-    if not order:
+    except NotFoundError as e:
         logger.warning(
             "api_order_not_found_for_status_update",
-            extra={"order_id": order_id},
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
+            detail=str(e),
         )
-
-    # تحديث حالة الطلب
-    updated_order = await change_order_status(
-        order_id=order_id,
-        new_status=data.status,
-        employee_id=data.employee_id,
-        note=data.note,
-        session=session,
-    )
-
-    return OrderResponse.model_validate(updated_order)
+    except ValidationError as e:
+        logger.warning(
+            "api_update_order_status_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_update_order_status_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء تحديث حالة الطلب",
+        )
 
 
 # ==============================================
@@ -432,16 +587,18 @@ async def update_order_status(
 )
 async def complete_order_endpoint(
     *,
-    order_id: int,
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
     employee_id: Optional[int] = Query(
         None,
         description="معرف الموظف",
+        ge=1,
     ),
     note: Optional[str] = Query(
         None,
+        max_length=500,
         description="ملاحظة",
     ),
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
     """
     إكمال الطلب.
@@ -450,10 +607,10 @@ async def complete_order_endpoint(
         order_id: معرف الطلب
         employee_id: معرف الموظف (اختياري)
         note: ملاحظة (اختياري)
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        الطلب المحدث
+        OrderResponse: الطلب المحدث
     """
     logger.info(
         "api_complete_order",
@@ -463,20 +620,50 @@ async def complete_order_endpoint(
         },
     )
 
-    await complete_order(
-        order_id=order_id,
-        employee_id=employee_id,
-        note=note,
-        session=session,
-    )
+    try:
+        order = await service.complete_order(
+            order_id=order_id,
+            employee_id=employee_id,
+            note=note,
+        )
+        return order
 
-    # جلب الطلب المحدث
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
-
-    return OrderResponse.model_validate(order)
+    except NotFoundError as e:
+        logger.warning(
+            "api_order_not_found_for_complete",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except ValidationError as e:
+        logger.warning(
+            "api_complete_order_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_complete_order_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء إكمال الطلب",
+        )
 
 
 # ==============================================
@@ -491,16 +678,18 @@ async def complete_order_endpoint(
 )
 async def cancel_order_endpoint(
     *,
-    order_id: int,
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
     employee_id: Optional[int] = Query(
         None,
         description="معرف الموظف",
+        ge=1,
     ),
     reason: Optional[str] = Query(
         None,
+        max_length=500,
         description="سبب الإلغاء",
     ),
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
     """
     إلغاء الطلب.
@@ -509,10 +698,10 @@ async def cancel_order_endpoint(
         order_id: معرف الطلب
         employee_id: معرف الموظف (اختياري)
         reason: سبب الإلغاء (اختياري)
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        الطلب المحدث
+        OrderResponse: الطلب المحدث
     """
     logger.info(
         "api_cancel_order",
@@ -523,20 +712,50 @@ async def cancel_order_endpoint(
         },
     )
 
-    await cancel_order(
-        order_id=order_id,
-        employee_id=employee_id,
-        reason=reason,
-        session=session,
-    )
+    try:
+        order = await service.cancel_order(
+            order_id=order_id,
+            employee_id=employee_id,
+            reason=reason,
+        )
+        return order
 
-    # جلب الطلب المحدث
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
-
-    return OrderResponse.model_validate(order)
+    except NotFoundError as e:
+        logger.warning(
+            "api_order_not_found_for_cancel",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except ValidationError as e:
+        logger.warning(
+            "api_cancel_order_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_cancel_order_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء إلغاء الطلب",
+        )
 
 
 # ==============================================
@@ -551,12 +770,13 @@ async def cancel_order_endpoint(
 )
 async def mark_order_paid_endpoint(
     *,
-    order_id: int,
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
     payment_id: int = Query(
         ...,
         description="معرف الدفعة",
+        ge=1,
     ),
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
     """
     تحديد الطلب كمدفوع.
@@ -564,10 +784,10 @@ async def mark_order_paid_endpoint(
     Args:
         order_id: معرف الطلب
         payment_id: معرف الدفعة
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        الطلب المحدث
+        OrderResponse: الطلب المحدث
     """
     logger.info(
         "api_mark_order_paid",
@@ -577,19 +797,49 @@ async def mark_order_paid_endpoint(
         },
     )
 
-    await mark_order_paid(
-        order_id=order_id,
-        payment_id=payment_id,
-        session=session,
-    )
+    try:
+        order = await service.mark_as_paid(
+            order_id=order_id,
+            payment_id=payment_id,
+        )
+        return order
 
-    # جلب الطلب المحدث
-    order = await get_restaurant_order(
-        order_id=order_id,
-        session=session,
-    )
-
-    return OrderResponse.model_validate(order)
+    except NotFoundError as e:
+        logger.warning(
+            "api_order_not_found_for_paid",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except ValidationError as e:
+        logger.warning(
+            "api_mark_order_paid_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_mark_order_paid_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء تحديث حالة الدفع",
+        )
 
 
 # ==============================================
@@ -604,31 +854,39 @@ async def mark_order_paid_endpoint(
 )
 async def delete_order(
     *,
-    order_id: int,
-    session: AsyncSession = Depends(get_db),
+    order_id: int = Path(..., ge=1, description="معرف الطلب"),
+    permanent: bool = Query(
+        False,
+        description="حذف نهائي (بدلاً من الحذف المنطقي)",
+    ),
+    service: OrderService = Depends(get_order_service),
 ) -> None:
     """
     حذف طلب.
     
     Args:
         order_id: معرف الطلب
-        session: جلسة قاعدة البيانات غير المتزامنة
+        permanent: حذف نهائي
+        service: خدمة الطلبات
         
     Raises:
         HTTPException: إذا لم يتم العثور على الطلب
     """
     logger.info(
         "api_delete_order",
-        extra={"order_id": order_id},
+        extra={
+            "order_id": order_id,
+            "permanent": permanent,
+        },
     )
 
     try:
-        await remove_order(
+        await service.delete_order(
             order_id=order_id,
-            session=session,
+            permanent=permanent,
         )
 
-    except ValueError as e:
+    except NotFoundError as e:
         logger.warning(
             "api_order_not_found_for_delete",
             extra={
@@ -640,10 +898,37 @@ async def delete_order(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
+    except ValidationError as e:
+        logger.warning(
+            "api_delete_order_validation_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            "api_delete_order_error",
+            extra={
+                "order_id": order_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء حذف الطلب",
+        )
 
     logger.info(
         "api_order_deleted_successfully",
-        extra={"order_id": order_id},
+        extra={
+            "order_id": order_id,
+            "permanent": permanent,
+        },
     )
 
 
@@ -662,54 +947,43 @@ async def get_order_summary(
     restaurant_id: int = Query(
         ...,
         description="معرف المطعم",
+        ge=1,
     ),
-    session: AsyncSession = Depends(get_db),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderSummary:
     """
     الحصول على ملخص الطلبات.
     
     Args:
         restaurant_id: معرف المطعم
-        session: جلسة قاعدة البيانات غير المتزامنة
+        service: خدمة الطلبات
         
     Returns:
-        ملخص الطلبات
+        OrderSummary: ملخص الطلبات
+        
+    Raises:
+        HTTPException: إذا حدث خطأ
     """
     logger.info(
         "api_get_order_summary",
         extra={"restaurant_id": restaurant_id},
     )
 
-    # جلب جميع الطلبات
-    orders = await get_orders(
-        restaurant_id=restaurant_id,
-        session=session,
-    )
+    try:
+        summary = await service.get_order_summary(
+            restaurant_id=restaurant_id,
+        )
+        return summary
 
-    # حساب الإحصائيات
-    status_counts = {}
-    total_revenue = 0.0
-
-    for order in orders:
-        status = order.status
-        status_counts[status] = status_counts.get(status, 0) + 1
-
-        if order.status in ["completed", "delivered", "paid"]:
-            total_revenue += order.total_amount
-
-    total_orders = len(orders)
-    avg_order_value = total_revenue / total_orders if total_orders > 0 else 0.0
-
-    return OrderSummary(
-        total_orders=total_orders,
-        pending_orders=status_counts.get("pending", 0),
-        confirmed_orders=status_counts.get("confirmed", 0),
-        preparing_orders=status_counts.get("preparing", 0),
-        ready_orders=status_counts.get("ready", 0),
-        delivering_orders=status_counts.get("delivering", 0),
-        delivered_orders=status_counts.get("delivered", 0),
-        completed_orders=status_counts.get("completed", 0),
-        cancelled_orders=status_counts.get("cancelled", 0),
-        total_revenue=total_revenue,
-        avg_order_value=avg_order_value,
-    )
+    except Exception as e:
+        logger.exception(
+            "api_get_order_summary_error",
+            extra={
+                "restaurant_id": restaurant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب ملخص الطلبات",
+        )

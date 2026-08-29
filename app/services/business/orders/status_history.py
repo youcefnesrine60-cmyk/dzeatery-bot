@@ -13,10 +13,17 @@ from typing import (
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import ValidationError
 from app.core.logger import logger
 from app.models.order_item import OrderStatusHistory
 from app.repositories.order_status_history_repo import (
     OrderStatusHistoryRepository,
+)
+from app.services.business.orders.constants import (
+    get_status_display_name,
+    is_valid_status,
+    ALL_STATUSES,
 )
 
 # ==============================================
@@ -26,6 +33,7 @@ from app.repositories.order_status_history_repo import (
 StatusHistoryDict = Dict[str, Any]
 StatusHistoryList = List[OrderStatusHistory]
 StatusDistribution = Dict[str, int]
+
 
 # ==============================================
 # 📜 STATUS HISTORY
@@ -48,7 +56,7 @@ async def get_status_history(
         limit: الحد الأقصى للسجلات
         
     Returns:
-        قائمة سجل الحالات
+        StatusHistoryList: قائمة سجل الحالات
     """
     logger.info(
         "get_status_history_started",
@@ -87,14 +95,14 @@ async def get_order_timeline(
     session: AsyncSession,
 ) -> List[Dict[str, Any]]:
     """
-    جلب الخط الزمني لحالات الطلب.
+    جلب الخط الزمني لحالات الطلب مع أسماء الحالات المعروضة.
     
     Args:
         order_id: معرف الطلب
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        قائمة الخط الزمني
+        List[Dict[str, Any]]: قائمة الخط الزمني
     """
     logger.info(
         "get_order_timeline_started",
@@ -104,15 +112,23 @@ async def get_order_timeline(
     history_repo = OrderStatusHistoryRepository(session=session)
     timeline = await history_repo.get_status_timeline(order_id=order_id)
 
+    # إضافة الأسماء المعروضة
+    enriched_timeline = []
+
+    for item in timeline:
+        enriched_item = dict(item)
+        enriched_item["status_display"] = get_status_display_name(item.get("status", "unknown"))
+        enriched_timeline.append(enriched_item)
+
     logger.info(
         "get_order_timeline_retrieved",
         extra={
             "order_id": order_id,
-            "count": len(timeline),
+            "count": len(enriched_timeline),
         },
     )
 
-    return timeline
+    return enriched_timeline
 
 
 # ==============================================
@@ -132,7 +148,7 @@ async def get_last_status(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        بيانات آخر تغيير أو None
+        Optional[OrderStatusHistory]: بيانات آخر تغيير أو None
     """
     logger.info(
         "get_last_status_started",
@@ -147,7 +163,7 @@ async def get_last_status(
             "get_last_status_found",
             extra={
                 "order_id": order_id,
-                "new_status": last_status.new_status,
+                "status": last_status.status,
                 "created_at": last_status.created_at,
             },
         )
@@ -177,7 +193,7 @@ async def get_status_history_count(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        عدد التغييرات
+        int: عدد التغييرات
     """
     logger.info(
         "get_status_history_count_started",
@@ -215,8 +231,20 @@ async def get_orders_reached_status(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        قائمة معرفات الطلبات
+        List[int]: قائمة معرفات الطلبات
+        
+    Raises:
+        ValidationError: إذا كانت الحالة غير صالحة
     """
+    if not is_valid_status(status):
+        raise ValidationError(
+            message=f"الحالة '{status}' غير صالحة",
+            details={
+                "status": status,
+                "valid_statuses": list(ALL_STATUSES),
+            },
+        )
+
     logger.info(
         "get_orders_reached_status_started",
         extra={"status": status},
@@ -253,7 +281,7 @@ async def get_status_distribution(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        توزيع الحالات
+        StatusDistribution: توزيع الحالات
     """
     logger.info(
         "get_status_distribution_started",
@@ -266,6 +294,7 @@ async def get_status_distribution(
     orders_repo = OrdersRepository(session=session)
     orders = await orders_repo.get_by_restaurant_id(
         restaurant_id=restaurant_id,
+        limit=10000,
     )
 
     # حساب توزيع الحالات
@@ -275,12 +304,161 @@ async def get_status_distribution(
         status = order.status
         distribution[status] = distribution.get(status, 0) + 1
 
+    # إضافة الحالات التي ليس لها طلبات
+    for status in ALL_STATUSES:
+        if status not in distribution:
+            distribution[status] = 0
+
+    # ترتيب النتائج حسب الترتيب المحدد
+    from app.services.business.orders.constants import STATUS_ORDER
+    sorted_distribution = {
+        status: distribution.get(status, 0)
+        for status in sorted(distribution.keys(), key=lambda x: STATUS_ORDER.get(x, 999))
+    }
+
     logger.info(
         "get_status_distribution_result",
         extra={
             "restaurant_id": restaurant_id,
-            "distribution": distribution,
+            "distribution": sorted_distribution,
         },
     )
 
-    return distribution
+    return sorted_distribution
+
+
+# ==============================================
+# ⏱️ GET AVERAGE STATUS DURATION
+# ==============================================
+
+async def get_average_status_duration(
+    *,
+    restaurant_id: int,
+    status: str,
+    session: AsyncSession,
+) -> Optional[float]:
+    """
+    حساب متوسط مدة البقاء في حالة معينة (بالدقائق).
+    
+    Args:
+        restaurant_id: معرف المطعم
+        status: حالة الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Optional[float]: متوسط المدة بالدقائق أو None إذا لم توجد بيانات
+        
+    Raises:
+        ValidationError: إذا كانت الحالة غير صالحة
+    """
+    if not is_valid_status(status):
+        raise ValidationError(
+            message=f"الحالة '{status}' غير صالحة",
+            details={
+                "status": status,
+                "valid_statuses": list(ALL_STATUSES),
+            },
+        )
+
+    logger.info(
+        "get_average_status_duration_started",
+        extra={
+            "restaurant_id": restaurant_id,
+            "status": status,
+        },
+    )
+
+    history_repo = OrderStatusHistoryRepository(session=session)
+    avg_duration = await history_repo.get_average_status_duration(
+        restaurant_id=restaurant_id,
+        status=status,
+    )
+
+    logger.info(
+        "get_average_status_duration_result",
+        extra={
+            "restaurant_id": restaurant_id,
+            "status": status,
+            "avg_duration_minutes": avg_duration,
+        },
+    )
+
+    return avg_duration
+
+
+# ==============================================
+# 🔍 GET CURRENT STATUS HISTORY
+# ==============================================
+
+async def get_current_status_history(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> Optional[OrderStatusHistory]:
+    """
+    الحصول على سجل الحالة الحالية للطلب (آخر تغيير).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Optional[OrderStatusHistory]: سجل الحالة الحالية أو None
+    """
+    return await get_last_status(
+        order_id=order_id,
+        session=session,
+    )
+
+
+# ==============================================
+# 🔄 COMPATIBILITY FUNCTIONS
+# ==============================================
+
+# دوال التوافق مع الإصدار القديم
+async def get_status_history_compat(
+    *,
+    order_id: int,
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+) -> StatusHistoryList:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        skip: عدد السجلات للتخطي
+        limit: الحد الأقصى للسجلات
+        
+    Returns:
+        StatusHistoryList: قائمة سجل الحالات
+    """
+    return await get_status_history(
+        order_id=order_id,
+        session=session,
+        skip=skip,
+        limit=limit,
+    )
+
+
+async def get_last_status_compat(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> Optional[OrderStatusHistory]:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Optional[OrderStatusHistory]: آخر تغيير أو None
+    """
+    return await get_last_status(
+        order_id=order_id,
+        session=session,
+    )

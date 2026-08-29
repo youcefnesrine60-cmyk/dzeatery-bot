@@ -15,7 +15,9 @@ from typing import (
 from pydantic import (
     BaseModel,
     Field,
+    field_validator,
 )
+
 
 # ==============================================
 # 🧩 TYPES
@@ -25,6 +27,8 @@ OrderData = Dict[str, Any]
 OrderUpdateData = Dict[str, Any]
 OrderItemPayload = Dict[str, Any]
 OrderOptionPayload = Dict[str, Any]
+OrderListData = List[Dict[str, Any]]
+
 
 # ==============================================
 # 📦 BASE SCHEMA
@@ -58,6 +62,7 @@ class OrderBase(BaseModel):
         ...,
         description="معرف المطعم",
         example=1,
+        ge=1,
     )
     branch_id: Optional[int] = Field(
         None,
@@ -113,7 +118,7 @@ class OrderBase(BaseModel):
         max_length=50,
         description=(
             "حالة الطلب: pending, confirmed, preparing, ready, "
-            "delivering, delivered, completed, cancelled, paid"
+            "delivering, delivered, completed, cancelled"
         ),
         example="pending",
     )
@@ -121,27 +126,90 @@ class OrderBase(BaseModel):
         0,
         description="المبلغ الإجمالي قبل الخصم",
         example=100.00,
+        ge=0,
     )
     discount_amount: float = Field(
         0,
         description="مبلغ الخصم",
         example=10.00,
+        ge=0,
     )
     tax_amount: float = Field(
         0,
         description="مبلغ الضريبة",
         example=15.00,
+        ge=0,
     )
     delivery_amount: float = Field(
         0,
         description="مبلغ التوصيل",
         example=5.00,
+        ge=0,
     )
     total_amount: float = Field(
         0,
         description="المبلغ النهائي",
         example=110.00,
+        ge=0,
     )
+    is_paid: bool = Field(
+        False,
+        description="هل الطلب مدفوع؟",
+        example=False,
+    )
+    payment_status: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="حالة الدفع",
+        example="pending",
+    )
+
+    @field_validator("order_type")
+    @classmethod
+    def validate_order_type(cls, value: str) -> str:
+        """
+        التحقق من صحة نوع الطلب.
+        
+        Args:
+            value: نوع الطلب
+            
+        Returns:
+            نوع الطلب المدقق
+            
+        Raises:
+            ValueError: إذا كان النوع غير صالح
+        """
+        valid_types = {"dine_in", "takeaway", "delivery"}
+        if value.lower() not in valid_types:
+            raise ValueError(
+                f"نوع الطلب يجب أن يكون واحداً من: {', '.join(valid_types)}"
+            )
+        return value.lower()
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        """
+        التحقق من صحة حالة الطلب.
+        
+        Args:
+            value: حالة الطلب
+            
+        Returns:
+            حالة الطلب المدققة
+            
+        Raises:
+            ValueError: إذا كانت الحالة غير صالحة
+        """
+        valid_statuses = {
+            "pending", "confirmed", "preparing", "ready",
+            "delivering", "delivered", "completed", "cancelled"
+        }
+        if value.lower() not in valid_statuses:
+            raise ValueError(
+                f"حالة الطلب يجب أن تكون واحدة من: {', '.join(valid_statuses)}"
+            )
+        return value.lower()
 
 
 # ==============================================
@@ -173,6 +241,7 @@ class OrderCreate(BaseModel):
         ...,
         description="معرف المطعم",
         example=1,
+        ge=1,
     )
     branch_id: Optional[int] = Field(
         None,
@@ -221,26 +290,31 @@ class OrderCreate(BaseModel):
         0,
         description="المبلغ الإجمالي قبل الخصم",
         example=100.00,
+        ge=0,
     )
     discount_amount: float = Field(
         0,
         description="مبلغ الخصم",
         example=10.00,
+        ge=0,
     )
     tax_amount: float = Field(
         0,
         description="مبلغ الضريبة",
         example=15.00,
+        ge=0,
     )
     delivery_amount: float = Field(
         0,
         description="مبلغ التوصيل",
         example=5.00,
+        ge=0,
     )
     total_amount: float = Field(
         0,
         description="المبلغ النهائي",
         example=110.00,
+        ge=0,
     )
     items: Optional[List[OrderItemPayload]] = Field(
         None,
@@ -263,6 +337,16 @@ class OrderCreate(BaseModel):
         ],
     )
 
+    @field_validator("order_type")
+    @classmethod
+    def validate_order_type(cls, value: str) -> str:
+        valid_types = {"dine_in", "takeaway", "delivery"}
+        if value.lower() not in valid_types:
+            raise ValueError(
+                f"نوع الطلب يجب أن يكون واحداً من: {', '.join(valid_types)}"
+            )
+        return value.lower()
+
 
 # ==============================================
 # 📥 CREATE ORDER ITEM SCHEMA
@@ -284,12 +368,14 @@ class OrderItemCreate(BaseModel):
         ...,
         description="معرف المنتج",
         example=1,
+        ge=1,
     )
     product_name: str = Field(
         ...,
         max_length=255,
         description="اسم المنتج",
         example="بيتزا مارغريتا",
+        min_length=1,
     )
     unit_price: float = Field(
         ...,
@@ -338,7 +424,6 @@ class OrderUpdate(BaseModel):
         customer_phone: رقم هاتف العميل
         delivery_address: عنوان التوصيل
         customer_note: ملاحظات العميل
-        status: حالة الطلب
         subtotal_amount: المبلغ الإجمالي قبل الخصم
         discount_amount: مبلغ الخصم
         tax_amount: مبلغ الضريبة
@@ -382,15 +467,9 @@ class OrderUpdate(BaseModel):
         description="ملاحظات العميل",
         example="الرجاء إضافة صوص إضافي",
     )
-    status: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="حالة الطلب",
-        example="confirmed",
-    )
     subtotal_amount: Optional[float] = Field(
         None,
-        gt=0,
+        ge=0,
         description="المبلغ الإجمالي قبل الخصم",
         example=100.00,
     )
@@ -414,7 +493,7 @@ class OrderUpdate(BaseModel):
     )
     total_amount: Optional[float] = Field(
         None,
-        gt=0,
+        ge=0,
         description="المبلغ النهائي",
         example=110.00,
     )
@@ -441,6 +520,7 @@ class OrderStatusUpdate(BaseModel):
     )
     note: Optional[str] = Field(
         None,
+        max_length=500,
         description="ملاحظة إضافية",
         example="تم تأكيد الطلب",
     )
@@ -449,6 +529,19 @@ class OrderStatusUpdate(BaseModel):
         description="معرف الموظف",
         example=1,
     )
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        valid_statuses = {
+            "pending", "confirmed", "preparing", "ready",
+            "delivering", "delivered", "completed", "cancelled"
+        }
+        if value.lower() not in valid_statuses:
+            raise ValueError(
+                f"حالة الطلب يجب أن تكون واحدة من: {', '.join(valid_statuses)}"
+            )
+        return value.lower()
 
 
 # ==============================================
@@ -468,6 +561,7 @@ class OrderResponse(OrderBase):
         ...,
         description="معرف الطلب",
         example=1,
+        ge=1,
     )
     created_at: datetime = Field(
         ...,
@@ -483,6 +577,46 @@ class OrderResponse(OrderBase):
         إعدادات نموذج Pydantic.
         """
         from_attributes = True
+
+
+# ==============================================
+# 📋 LIST RESPONSE
+# ==============================================
+
+class OrderListResponse(BaseModel):
+    """
+    مخطط استجابة قائمة الطلبات.
+    
+    يحتوي على قائمة الطلبات مع معلومات الترقيم.
+    
+    Attributes:
+        items: قائمة الطلبات
+        total: العدد الإجمالي
+        skip: عدد السجلات المتخطية
+        limit: الحد الأقصى للسجلات
+    """
+    items: List[OrderResponse] = Field(
+        ...,
+        description="قائمة الطلبات",
+    )
+    total: int = Field(
+        ...,
+        description="العدد الإجمالي",
+        example=10,
+        ge=0,
+    )
+    skip: int = Field(
+        ...,
+        description="عدد السجلات المتخطية",
+        example=0,
+        ge=0,
+    )
+    limit: int = Field(
+        ...,
+        description="الحد الأقصى للسجلات",
+        example=100,
+        ge=1,
+    )
 
 
 # ==============================================
@@ -539,54 +673,87 @@ class OrderSummary(BaseModel):
         ...,
         description="إجمالي عدد الطلبات",
         example=100,
+        ge=0,
     )
     pending_orders: int = Field(
         ...,
         description="عدد الطلبات المعلقة",
         example=10,
+        ge=0,
     )
     confirmed_orders: int = Field(
         ...,
         description="عدد الطلبات المؤكدة",
         example=15,
+        ge=0,
     )
     preparing_orders: int = Field(
         ...,
         description="عدد الطلبات قيد التحضير",
         example=20,
+        ge=0,
     )
     ready_orders: int = Field(
         ...,
         description="عدد الطلبات الجاهزة",
         example=5,
+        ge=0,
     )
     delivering_orders: int = Field(
         ...,
         description="عدد الطلبات قيد التوصيل",
         example=8,
+        ge=0,
     )
     delivered_orders: int = Field(
         ...,
         description="عدد الطلبات الموصلة",
         example=12,
+        ge=0,
     )
     completed_orders: int = Field(
         ...,
         description="عدد الطلبات المكتملة",
         example=25,
+        ge=0,
     )
     cancelled_orders: int = Field(
         ...,
         description="عدد الطلبات الملغاة",
         example=5,
+        ge=0,
     )
     total_revenue: float = Field(
         ...,
         description="إجمالي الإيرادات",
         example=10000.00,
+        ge=0,
     )
     avg_order_value: float = Field(
         ...,
         description="متوسط قيمة الطلب",
         example=100.00,
+        ge=0,
     )
+
+
+# ==============================================
+# 📋 EXPORTS
+# ==============================================
+
+__all__ = [
+    "OrderBase",
+    "OrderCreate",
+    "OrderItemCreate",
+    "OrderUpdate",
+    "OrderStatusUpdate",
+    "OrderResponse",
+    "OrderListResponse",
+    "OrderWithItemsResponse",
+    "OrderSummary",
+    "OrderData",
+    "OrderUpdateData",
+    "OrderItemPayload",
+    "OrderOptionPayload",
+    "OrderListData",
+]

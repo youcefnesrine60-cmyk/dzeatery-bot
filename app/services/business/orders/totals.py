@@ -8,10 +8,17 @@ from typing import Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import (
+    NotFoundError,
+    ValidationError,
+)
+
 from app.core.logger import logger
 from app.models.order import Order
 from app.repositories.order_items_repo import OrderItemsRepository
 from app.repositories.orders_repo import OrdersRepository
+from app.repositories.order_item_options_repo import OrderItemOptionsRepository
 from app.services.business.orders.helpers import check_order_editable
 
 # ==============================================
@@ -19,6 +26,8 @@ from app.services.business.orders.helpers import check_order_editable
 # ==============================================
 
 OrderTotals = Tuple[float, float, float, float, float]
+OrderTotalsWithOptions = Tuple[float, float, float, float, float, float]
+
 
 # ==============================================
 # 🧮 CALCULATE ORDER TOTALS
@@ -28,6 +37,7 @@ async def calculate_order_totals(
     *,
     order_id: int,
     session: AsyncSession,
+    include_options: bool = False,
 ) -> OrderTotals:
     """
     حساب إجماليات الطلب من عناصره.
@@ -35,19 +45,23 @@ async def calculate_order_totals(
     Args:
         order_id: معرف الطلب
         session: جلسة قاعدة البيانات غير المتزامنة
+        include_options: تضمين أسعار الخيارات في الحساب
         
     Returns:
-        (subtotal, discount, tax, delivery, total)
+        OrderTotals: (subtotal, discount, tax, delivery, total)
         
     Raises:
-        ValueError: إذا لم يتم العثور على الطلب
+        NotFoundError: إذا لم يتم العثور على الطلب
     """
     logger.info(
         "calculate_order_totals_started",
-        extra={"order_id": order_id},
+        extra={
+            "order_id": order_id,
+            "include_options": include_options,
+        },
     )
 
-    # جلب الطلب
+    # 1️⃣ جلب الطلب
     orders_repo = OrdersRepository(session=session)
     order = await orders_repo.get_by_id(id=order_id)
 
@@ -56,47 +70,63 @@ async def calculate_order_totals(
             "calculate_order_totals_order_not_found",
             extra={"order_id": order_id},
         )
-        raise ValueError("order_not_found")
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
+        )
 
-    # جلب عناصر الطلب
+    # 2️⃣ جلب عناصر الطلب
     items_repo = OrderItemsRepository(session=session)
     items = await items_repo.get_by_order_id(order_id=order_id)
 
-    # حساب المجموع الفرعي من العناصر
+    # 3️⃣ حساب المجموع الفرعي من العناصر
     subtotal = sum(float(item.total_price) for item in items)
 
-    # جلب الخصم والضريبة والتوصيل من الطلب
+    # 4️⃣ حساب أسعار الخيارات إذا كان مطلوباً
+    options_total = 0.0
+
+    if include_options:
+        options_repo = OrderItemOptionsRepository(session=session)
+        for item in items:
+            options = await options_repo.get_by_order_item_id(order_item_id=item.id)
+            options_total += sum(float(opt.additional_price) for opt in options)
+
+        subtotal += options_total
+
+    # 5️⃣ جلب الخصم والضريبة والتوصيل من الطلب
     discount = float(order.discount_amount or 0)
     tax = float(order.tax_amount or 0)
     delivery = float(order.delivery_amount or 0)
 
-    # حساب المجموع الكلي
+    # 6️⃣ حساب المجموع الكلي
     total = subtotal - discount + tax + delivery
 
-    # تحديث إجماليات الطلب
-    await orders_repo.update_totals(
-        order_id=order_id,
-        subtotal_amount=subtotal,
-        discount_amount=discount,
-        tax_amount=tax,
-        delivery_amount=delivery,
-        total_amount=total,
+    # 7️⃣ تحديث إجماليات الطلب
+    await orders_repo.update(
+        id=order_id,
+        data={
+            "subtotal_amount": round(subtotal, 2),
+            "discount_amount": round(discount, 2),
+            "tax_amount": round(tax, 2),
+            "delivery_amount": round(delivery, 2),
+            "total_amount": round(total, 2),
+        },
     )
 
     logger.info(
         "order_totals_calculated_successfully",
         extra={
             "order_id": order_id,
-            "subtotal": subtotal,
-            "discount": discount,
-            "tax": tax,
-            "delivery": delivery,
-            "total": total,
+            "subtotal": round(subtotal, 2),
+            "discount": round(discount, 2),
+            "tax": round(tax, 2),
+            "delivery": round(delivery, 2),
+            "total": round(total, 2),
             "items_count": len(items),
+            "options_total": round(options_total, 2) if include_options else None,
         },
     )
 
-    return (subtotal, discount, tax, delivery, total)
+    return (round(subtotal, 2), round(discount, 2), round(tax, 2), round(delivery, 2), round(total, 2))
 
 
 # ==============================================
@@ -126,10 +156,11 @@ async def update_order_totals(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        الطلب المُحدّث
+        Order: الطلب المُحدّث
         
     Raises:
-        ValueError: إذا لم يتم العثور على الطلب أو كان مقفلاً
+        NotFoundError: إذا لم يتم العثور على الطلب
+        ValidationError: إذا كانت القيم غير صالحة أو الطلب مقفلاً
     """
     logger.info(
         "update_order_totals_started",
@@ -140,7 +171,33 @@ async def update_order_totals(
         },
     )
 
-    # جلب الطلب
+    # 1️⃣ التحقق من صحة القيم
+    if subtotal_amount < 0:
+        raise ValidationError(
+            message="المجموع الفرعي لا يمكن أن يكون سالباً",
+        )
+
+    if discount_amount < 0:
+        raise ValidationError(
+            message="مبلغ الخصم لا يمكن أن يكون سالباً",
+        )
+
+    if tax_amount < 0:
+        raise ValidationError(
+            message="مبلغ الضريبة لا يمكن أن يكون سالباً",
+        )
+
+    if delivery_amount < 0:
+        raise ValidationError(
+            message="مبلغ التوصيل لا يمكن أن يكون سالباً",
+        )
+
+    if total_amount < 0:
+        raise ValidationError(
+            message="المجموع الكلي لا يمكن أن يكون سالباً",
+        )
+
+    # 2️⃣ جلب الطلب
     orders_repo = OrdersRepository(session=session)
     order = await orders_repo.get_by_id(id=order_id)
 
@@ -149,19 +206,23 @@ async def update_order_totals(
             "update_order_totals_order_not_found",
             extra={"order_id": order_id},
         )
-        raise ValueError("order_not_found")
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
+        )
 
-    # التحقق من إمكانية التعديل
+    # 3️⃣ التحقق من إمكانية التعديل
     check_order_editable(order)
 
-    # تحديث الإجماليات
-    updated_order = await orders_repo.update_totals(
-        order_id=order_id,
-        subtotal_amount=subtotal_amount,
-        discount_amount=discount_amount,
-        tax_amount=tax_amount,
-        delivery_amount=delivery_amount,
-        total_amount=total_amount,
+    # 4️⃣ تحديث الإجماليات
+    updated_order = await orders_repo.update(
+        id=order_id,
+        data={
+            "subtotal_amount": round(subtotal_amount, 2),
+            "discount_amount": round(discount_amount, 2),
+            "tax_amount": round(tax_amount, 2),
+            "delivery_amount": round(delivery_amount, 2),
+            "total_amount": round(total_amount, 2),
+        },
     )
 
     if not updated_order:
@@ -169,14 +230,16 @@ async def update_order_totals(
             "update_order_totals_update_failed",
             extra={"order_id": order_id},
         )
-        raise ValueError("order_update_failed")
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
+        )
 
     logger.info(
         "order_totals_updated_successfully",
         extra={
             "order_id": order_id,
-            "subtotal_amount": subtotal_amount,
-            "total_amount": total_amount,
+            "subtotal_amount": round(subtotal_amount, 2),
+            "total_amount": round(total_amount, 2),
         },
     )
 
@@ -191,6 +254,7 @@ async def recalculate_order_totals(
     *,
     order_id: int,
     session: AsyncSession,
+    include_options: bool = False,
 ) -> OrderTotals:
     """
     إعادة حساب إجماليات الطلب (جمع بين calculate و update).
@@ -198,25 +262,28 @@ async def recalculate_order_totals(
     Args:
         order_id: معرف الطلب
         session: جلسة قاعدة البيانات غير المتزامنة
+        include_options: تضمين أسعار الخيارات في الحساب
         
     Returns:
-        (subtotal, discount, tax, delivery, total)
+        OrderTotals: (subtotal, discount, tax, delivery, total)
         
     Raises:
-        ValueError: إذا لم يتم العثور على الطلب
+        NotFoundError: إذا لم يتم العثور على الطلب
     """
     logger.info(
         "recalculate_order_totals_started",
-        extra={"order_id": order_id},
+        extra={
+            "order_id": order_id,
+            "include_options": include_options,
+        },
     )
 
-    # حساب الإجماليات
+    # حساب الإجماليات (يتم التحديث تلقائياً داخل الدالة)
     totals = await calculate_order_totals(
         order_id=order_id,
         session=session,
+        include_options=include_options,
     )
-
-    # تحديث الإجماليات في قاعدة البيانات (يتم داخل calculate_order_totals)
 
     logger.info(
         "recalculate_order_totals_completed",
@@ -247,10 +314,10 @@ async def get_order_totals(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        (subtotal, discount, tax, delivery, total)
+        OrderTotals: (subtotal, discount, tax, delivery, total)
         
     Raises:
-        ValueError: إذا لم يتم العثور على الطلب
+        NotFoundError: إذا لم يتم العثور على الطلب
     """
     logger.info(
         "get_order_totals_started",
@@ -265,7 +332,9 @@ async def get_order_totals(
             "get_order_totals_order_not_found",
             extra={"order_id": order_id},
         )
-        raise ValueError("order_not_found")
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
+        )
 
     totals = (
         float(order.subtotal_amount or 0),
@@ -285,3 +354,108 @@ async def get_order_totals(
     )
 
     return totals
+
+
+# ==============================================
+# 🧮 CALCULATE ITEM TOTALS
+# ==============================================
+
+async def calculate_item_totals(
+    *,
+    order_item_id: int,
+    session: AsyncSession,
+) -> Tuple[float, float]:
+    """
+    حساب إجماليات عنصر طلب معين (السعر الأساسي + الخيارات).
+    
+    Args:
+        order_item_id: معرف عنصر الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Tuple[float, float]: (base_total, total_with_options)
+        
+    Raises:
+        NotFoundError: إذا لم يتم العثور على العنصر
+    """
+    logger.info(
+        "calculate_item_totals_started",
+        extra={"order_item_id": order_item_id},
+    )
+
+    items_repo = OrderItemsRepository(session=session)
+    item = await items_repo.get_by_id(id=order_item_id)
+
+    if not item:
+        raise NotFoundError(
+            message=f"عنصر الطلب بـ ID '{order_item_id}' غير موجود",
+        )
+
+    base_total = float(item.total_price)
+
+    # حساب أسعار الخيارات
+    options_repo = OrderItemOptionsRepository(session=session)
+    options = await options_repo.get_by_order_item_id(order_item_id=order_item_id)
+    options_total = sum(float(opt.additional_price) for opt in options)
+
+    total_with_options = base_total + options_total
+
+    logger.info(
+        "item_totals_calculated",
+        extra={
+            "order_item_id": order_item_id,
+            "base_total": base_total,
+            "options_total": options_total,
+            "total_with_options": total_with_options,
+        },
+    )
+
+    return (base_total, total_with_options)
+
+
+# ==============================================
+# 🔄 COMPATIBILITY FUNCTIONS
+# ==============================================
+
+async def calculate_order_totals_compat(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> OrderTotals:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        OrderTotals: (subtotal, discount, tax, delivery, total)
+    """
+    return await calculate_order_totals(
+        order_id=order_id,
+        session=session,
+        include_options=False,
+    )
+
+
+async def recalculate_order_totals_compat(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> OrderTotals:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        OrderTotals: (subtotal, discount, tax, delivery, total)
+    """
+    return await recalculate_order_totals(
+        order_id=order_id,
+        session=session,
+        include_options=False,
+    )

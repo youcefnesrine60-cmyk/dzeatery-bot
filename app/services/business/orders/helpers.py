@@ -1,41 +1,57 @@
 # ==============================================
 # 📦 ORDERS SERVICE - HELPERS
-# الدوال المساعدة (_check_order_editable)
+# الدوال المساعدة (check_order_editable)
 # ==============================================
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 
 from app.models.order import Order
-from app.services.business.orders.constants import LOCKED_STATUSES
+from app.services.business.orders.constants import (
+    LOCKED_STATUSES,
+    is_locked_status,
+    can_transition,
+    get_status_display_name,
+)
 
 # ==============================================
 # 🧩 TYPES
 # ==============================================
 
 OrderDict = Dict[str, Any]
+OrderStatusType = str
+
 
 # ==============================================
-# 🔒 LOCK ORDER
+# 🔒 CHECK ORDER EDITABLE
 # ==============================================
 
 def check_order_editable(
-    order: Order,
+    order: Union[Order, OrderDict],
 ) -> None:
     """
     تتحقق من إمكانية تعديل الطلب.
     
     Args:
-        order: كائن الطلب من SQLAlchemy
+        order: كائن الطلب من SQLAlchemy أو قاموس بيانات
         
     Raises:
         ValueError: إذا كان الطلب في حالة تمنع التعديل
     """
-    status = order.status
+    # استخراج الحالة من الكائن أو القاموس
+    if isinstance(order, Order):
+        status = order.status
+        order_id = order.id
+        order_number = getattr(order, "order_number", "غير معروف")
+    else:
+        status = str(order.get("status", ""))
+        order_id = order.get("id", "غير معروف")
+        order_number = order.get("order_number", "غير معروف")
 
-    if status in LOCKED_STATUSES:
+    if is_locked_status(status):
         raise ValueError(
-            f"order_locked_status_{status}",
+            f"لا يمكن تعديل الطلب #{order_number} لأنه في حالة '{get_status_display_name(status)}'",
         )
+
 
 # ==============================================
 # 🔒 CHECK ORDER EDITABLE (DICT VERSION)
@@ -54,11 +70,14 @@ def check_order_editable_from_dict(
         ValueError: إذا كان الطلب في حالة تمنع التعديل
     """
     status = str(order.get("status", ""))
+    order_id = order.get("id", "غير معروف")
+    order_number = order.get("order_number", "غير معروف")
 
-    if status in LOCKED_STATUSES:
+    if is_locked_status(status):
         raise ValueError(
-            f"order_locked_status_{status}",
+            f"لا يمكن تعديل الطلب #{order_number} لأنه في حالة '{get_status_display_name(status)}'",
         )
+
 
 # ==============================================
 # 🔒 CHECK ORDER EDITABLE BY STATUS
@@ -66,35 +85,177 @@ def check_order_editable_from_dict(
 
 def check_order_editable_by_status(
     status: str,
+    order_number: Optional[str] = None,
 ) -> None:
     """
     تتحقق من إمكانية تعديل الطلب بناءً على حالته.
     
     Args:
         status: حالة الطلب
+        order_number: رقم الطلب (اختياري، للعرض في رسالة الخطأ)
         
     Raises:
         ValueError: إذا كانت الحالة تمنع التعديل
     """
-    if status in LOCKED_STATUSES:
+    order_display = f" #{order_number}" if order_number else ""
+
+    if is_locked_status(status):
         raise ValueError(
-            f"order_locked_status_{status}",
+            f"لا يمكن تعديل الطلب{order_display} لأنه في حالة '{get_status_display_name(status)}'",
         )
+
 
 # ==============================================
 # ✅ IS ORDER EDITABLE
 # ==============================================
 
 def is_order_editable(
-    status: str,
+    order: Union[Order, OrderDict, str],
 ) -> bool:
     """
     تتحقق مما إذا كان الطلب قابلاً للتعديل.
     
     Args:
+        order: كائن الطلب، قاموس بيانات، أو حالة (string)
+        
+    Returns:
+        bool: True إذا كان قابلاً للتعديل، False إذا كان مقفلاً
+    """
+    if isinstance(order, str):
+        # حالة فقط
+        return not is_locked_status(order)
+    elif isinstance(order, Order):
+        # كائن Order
+        return not is_locked_status(order.status)
+    elif isinstance(order, dict):
+        # قاموس
+        status = str(order.get("status", ""))
+        return not is_locked_status(status)
+    return False
+
+
+# ==============================================
+# ✅ VALIDATE ORDER TRANSITION
+# ==============================================
+
+def validate_order_transition(
+    current_status: str,
+    new_status: str,
+    order_number: Optional[str] = None,
+) -> None:
+    """
+    التحقق من صحة انتقال حالة الطلب.
+    
+    Args:
+        current_status: الحالة الحالية
+        new_status: الحالة الجديدة
+        order_number: رقم الطلب (اختياري، للعرض في رسالة الخطأ)
+        
+    Raises:
+        ValueError: إذا كان الانتقال غير مسموح به
+    """
+    order_display = f" #{order_number}" if order_number else ""
+
+    if not can_transition(current_status, new_status):
+        raise ValueError(
+            f"لا يمكن تغيير حالة الطلب{order_display} من '{get_status_display_name(current_status)}' "
+            f"إلى '{get_status_display_name(new_status)}'",
+        )
+
+
+# ==============================================
+# 🔧 GET ORDER_DISPLAY_NAME
+# ==============================================
+
+def get_order_display_name(
+    order: Union[Order, OrderDict],
+) -> str:
+    """
+    الحصول على اسم عرض للطلب.
+    
+    Args:
+        order: كائن الطلب أو قاموس
+        
+    Returns:
+        str: اسم العرض (رقم الطلب أو المعرف)
+    """
+    if isinstance(order, Order):
+        return f"#{getattr(order, 'order_number', order.id)}"
+    else:
+        return f"#{order.get('order_number', order.get('id', 'غير معروف'))}"
+
+
+# ==============================================
+# 📋 SUMMARY HELPER
+# ==============================================
+
+def build_order_summary(
+    order: Union[Order, OrderDict],
+) -> Dict[str, Any]:
+    """
+    بناء ملخص للطلب.
+    
+    Args:
+        order: كائن الطلب أو قاموس
+        
+    Returns:
+        dict: ملخص الطلب
+    """
+    if isinstance(order, Order):
+        return {
+            "id": order.id,
+            "order_number": getattr(order, "order_number", "N/A"),
+            "status": order.status,
+            "status_display": get_status_display_name(order.status),
+            "total_amount": getattr(order, "total_amount", 0),
+            "customer_name": getattr(order, "customer_name", "غير معروف"),
+            "is_paid": getattr(order, "is_paid", False),
+            "is_editable": is_order_editable(order),
+        }
+    else:
+        status = str(order.get("status", "unknown"))
+        return {
+            "id": order.get("id", "N/A"),
+            "order_number": order.get("order_number", "N/A"),
+            "status": status,
+            "status_display": get_status_display_name(status),
+            "total_amount": order.get("total_amount", 0),
+            "customer_name": order.get("customer_name", "غير معروف"),
+            "is_paid": order.get("is_paid", False),
+            "is_editable": is_order_editable(order),
+        }
+
+
+# ==============================================
+# 🔄 COMPATIBILITY FUNCTIONS
+# ==============================================
+
+# دوال التوافق مع الإصدار القديم
+def check_order_editable_compat(
+    order: Union[Order, OrderDict],
+) -> None:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order: كائن الطلب أو قاموس
+        
+    Raises:
+        ValueError: إذا كان الطلب في حالة تمنع التعديل
+    """
+    check_order_editable(order)
+
+
+def is_order_editable_compat(
+    status: str,
+) -> bool:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
         status: حالة الطلب
         
     Returns:
-        True إذا كان قابلاً للتعديل، False إذا كان مقفلاً
+        bool: True إذا كان قابلاً للتعديل
     """
-    return status not in LOCKED_STATUSES
+    return is_order_editable(status)

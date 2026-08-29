@@ -1,7 +1,7 @@
 # ==============================================
 # 📦 ORDERS SERVICE - READ
 # قراءة الطلبات 
-# (get_restaurant_order, get_orders, get_orders_status)
+# (get_restaurant_order, get_orders, get_orders_by_status)
 # ==============================================
 
 from typing import (
@@ -13,9 +13,15 @@ from typing import (
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# ✅ استيراد الاستثناءات
+from app.core.exceptions import (
+    NotFoundError,
+)
+
 from app.core.logger import logger
 from app.models.order import Order
 from app.repositories.orders_repo import OrdersRepository
+from app.services.business.orders.constants import is_valid_status
 
 # ==============================================
 # 🧩 TYPES
@@ -23,6 +29,7 @@ from app.repositories.orders_repo import OrdersRepository
 
 OrderDict = Dict[str, Any]
 OrderList = List[Order]
+
 
 # ==============================================
 # 🔍 GET ORDER
@@ -41,7 +48,7 @@ async def get_restaurant_order(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        كائن الطلب أو None
+        Optional[Order]: كائن الطلب أو None
     """
     logger.info(
         "get_restaurant_order_started",
@@ -56,6 +63,7 @@ async def get_restaurant_order(
             "get_restaurant_order_found",
             extra={
                 "order_id": order_id,
+                "order_number": getattr(order, "order_number", "N/A"),
                 "status": order.status,
             },
         )
@@ -63,6 +71,41 @@ async def get_restaurant_order(
         logger.info(
             "get_restaurant_order_not_found",
             extra={"order_id": order_id},
+        )
+
+    return order
+
+
+# ==============================================
+# 🔍 GET ORDER (WITH ERROR)
+# ==============================================
+
+async def get_restaurant_order_or_raise(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> Order:
+    """
+    جلب بيانات طلب معين ورفع خطأ إذا لم يتم العثور عليه.
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Order: كائن الطلب
+        
+    Raises:
+        NotFoundError: إذا لم يتم العثور على الطلب
+    """
+    order = await get_restaurant_order(
+        order_id=order_id,
+        session=session,
+    )
+
+    if not order:
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
         )
 
     return order
@@ -87,7 +130,7 @@ async def get_order_by_number(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        كائن الطلب أو None
+        Optional[Order]: كائن الطلب أو None
     """
     logger.info(
         "get_order_by_number_started",
@@ -125,6 +168,44 @@ async def get_order_by_number(
 
 
 # ==============================================
+# 🔍 GET ORDER BY NUMBER (WITH ERROR)
+# ==============================================
+
+async def get_order_by_number_or_raise(
+    *,
+    restaurant_id: int,
+    order_number: str,
+    session: AsyncSession,
+) -> Order:
+    """
+    جلب طلب حسب رقمه ورفع خطأ إذا لم يتم العثور عليه.
+    
+    Args:
+        restaurant_id: معرف المطعم
+        order_number: رقم الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Order: كائن الطلب
+        
+    Raises:
+        NotFoundError: إذا لم يتم العثور على الطلب
+    """
+    order = await get_order_by_number(
+        restaurant_id=restaurant_id,
+        order_number=order_number,
+        session=session,
+    )
+
+    if not order:
+        raise NotFoundError(
+            message=f"الطلب بـ رقم '{order_number}' غير موجود للمطعم {restaurant_id}",
+        )
+
+    return order
+
+
+# ==============================================
 # 🔍 GET RESTAURANT ORDERS
 # ==============================================
 
@@ -147,7 +228,7 @@ async def get_orders(
         status: حالة الطلب (اختياري)
         
     Returns:
-        قائمة الطلبات
+        OrderList: قائمة الطلبات
     """
     logger.info(
         "get_orders_started",
@@ -158,6 +239,16 @@ async def get_orders(
             "status": status,
         },
     )
+
+    # التحقق من صحة الحالة إذا تم تمريرها
+    if status and not is_valid_status(status):
+        logger.warning(
+            "get_orders_invalid_status",
+            extra={
+                "restaurant_id": restaurant_id,
+                "status": status,
+            },
+        )
 
     orders_repo = OrdersRepository(session=session)
     orders = await orders_repo.get_by_restaurant_id(
@@ -202,7 +293,10 @@ async def get_orders_by_status(
         limit: الحد الأقصى للسجلات
         
     Returns:
-        قائمة الطلبات
+        OrderList: قائمة الطلبات
+        
+    Raises:
+        ValueError: إذا كانت الحالة غير صالحة
     """
     logger.info(
         "get_orders_by_status_started",
@@ -213,6 +307,17 @@ async def get_orders_by_status(
             "limit": limit,
         },
     )
+
+    # التحقق من صحة الحالة
+    if not is_valid_status(status):
+        logger.error(
+            "get_orders_by_status_invalid_status",
+            extra={
+                "restaurant_id": restaurant_id,
+                "status": status,
+            },
+        )
+        raise ValueError(f"الحالة '{status}' غير صالحة")
 
     orders_repo = OrdersRepository(session=session)
     orders = await orders_repo.get_by_status(
@@ -251,7 +356,7 @@ async def get_order_with_details(
         session: جلسة قاعدة البيانات غير المتزامنة
         
     Returns:
-        كائن الطلب مع العلاقات أو None
+        Optional[Order]: كائن الطلب مع العلاقات أو None
     """
     logger.info(
         "get_order_with_details_started",
@@ -259,22 +364,57 @@ async def get_order_with_details(
     )
 
     orders_repo = OrdersRepository(session=session)
-    order = await orders_repo.get_by_id(id=order_id)
+    order = await orders_repo.get_with_relations(order_id=order_id)
 
     if order:
-        # تحميل العلاقات (يتم تحميلها تلقائياً عبر lazy="selectin" في النموذج)
         logger.info(
             "get_order_with_details_found",
             extra={
                 "order_id": order_id,
-                "items_count": len(order.items) if order.items else 0,
-                "payments_count": len(order.payments) if order.payments else 0,
+                "order_number": getattr(order, "order_number", "N/A"),
+                "items_count": len(order.items) if hasattr(order, "items") and order.items else 0,
+                "payments_count": len(order.payments) if hasattr(order, "payments") and order.payments else 0,
             },
         )
     else:
         logger.info(
             "get_order_with_details_not_found",
             extra={"order_id": order_id},
+        )
+
+    return order
+
+
+# ==============================================
+# 🔍 GET ORDER WITH DETAILS (WITH ERROR)
+# ==============================================
+
+async def get_order_with_details_or_raise(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> Order:
+    """
+    جلب طلب مع جميع علاقاته ورفع خطأ إذا لم يتم العثور عليه.
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Order: كائن الطلب مع العلاقات
+        
+    Raises:
+        NotFoundError: إذا لم يتم العثور على الطلب
+    """
+    order = await get_order_with_details(
+        order_id=order_id,
+        session=session,
+    )
+
+    if not order:
+        raise NotFoundError(
+            message=f"الطلب بـ ID '{order_id}' غير موجود",
         )
 
     return order
@@ -299,7 +439,7 @@ async def count_orders_by_restaurant(
         status: حالة الطلب (اختياري)
         
     Returns:
-        عدد الطلبات
+        int: عدد الطلبات
     """
     logger.info(
         "count_orders_by_restaurant_started",
@@ -312,6 +452,16 @@ async def count_orders_by_restaurant(
     orders_repo = OrdersRepository(session=session)
 
     if status:
+        if not is_valid_status(status):
+            logger.warning(
+                "count_orders_by_restaurant_invalid_status",
+                extra={
+                    "restaurant_id": restaurant_id,
+                    "status": status,
+                },
+            )
+            return 0
+
         count = await orders_repo.count_by_status(
             restaurant_id=restaurant_id,
             status=status,
@@ -331,3 +481,104 @@ async def count_orders_by_restaurant(
     )
 
     return count
+
+
+# ==============================================
+# 📊 GET ORDER STATUS COUNTS
+# ==============================================
+
+async def get_order_status_counts(
+    *,
+    restaurant_id: int,
+    session: AsyncSession,
+) -> Dict[str, int]:
+    """
+    الحصول على عدد الطلبات حسب كل حالة لمطعم معين.
+    
+    Args:
+        restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Dict[str, int]: قاموس يحتوي على عدد الطلبات لكل حالة
+    """
+    logger.info(
+        "get_order_status_counts_started",
+        extra={"restaurant_id": restaurant_id},
+    )
+
+    from app.services.business.orders.constants import ALL_STATUSES
+
+    orders_repo = OrdersRepository(session=session)
+    status_counts = {}
+
+    for status in ALL_STATUSES:
+        count = await orders_repo.count_by_status(
+            restaurant_id=restaurant_id,
+            status=status,
+        )
+        if count > 0:
+            status_counts[status] = count
+
+    logger.info(
+        "get_order_status_counts_result",
+        extra={
+            "restaurant_id": restaurant_id,
+            "status_counts": status_counts,
+        },
+    )
+
+    return status_counts
+
+
+# ==============================================
+# 🔄 COMPATIBILITY FUNCTIONS
+# ==============================================
+
+# دوال التوافق مع الإصدار القديم
+async def get_restaurant_order_compat(
+    *,
+    order_id: int,
+    session: AsyncSession,
+) -> Optional[Order]:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        order_id: معرف الطلب
+        session: جلسة قاعدة البيانات غير المتزامنة
+        
+    Returns:
+        Optional[Order]: كائن الطلب أو None
+    """
+    return await get_restaurant_order(
+        order_id=order_id,
+        session=session,
+    )
+
+
+async def get_orders_compat(
+    *,
+    restaurant_id: int,
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+) -> OrderList:
+    """
+    دالة متوافقة مع الإصدار القديم (مغلفة).
+    
+    Args:
+        restaurant_id: معرف المطعم
+        session: جلسة قاعدة البيانات غير المتزامنة
+        skip: عدد السجلات للتخطي
+        limit: الحد الأقصى للسجلات
+        
+    Returns:
+        OrderList: قائمة الطلبات
+    """
+    return await get_orders(
+        restaurant_id=restaurant_id,
+        session=session,
+        skip=skip,
+        limit=limit,
+    )
