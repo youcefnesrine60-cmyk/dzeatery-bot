@@ -1,4 +1,11 @@
 # ==============================================
+# MoulAI Platform - Agent-as-a-Service
+# Author: Youcef Nesrine
+# License: CC BY-NC-ND 4.0
+# Copyright (c) 2026 Youcef Nesrine
+# ==============================================
+
+# ==============================================
 # 🚀 CORE MODULE
 # المكونات الأساسية للمشروع
 # ==============================================
@@ -8,6 +15,7 @@
 # ==============================================
 
 from app.core.exceptions import (
+
     # Base
     AppException,
     
@@ -112,12 +120,24 @@ from app.core.database import (
     AsyncSessionLocal,
 )
 
+# ==============================================
+# 🤖 AI CLIENT
+# ==============================================
+
+from app.core.ai_client import (
+    AIClient,
+    ai_client,
+    AIMessage,
+    AIMessages,
+    AIResponse
+)
 
 # ==============================================
 # 📋 EXPORTS
 # ==============================================
 
 __all__ = [
+
     # Exceptions
     "AppException",
     "NotFoundError",
@@ -177,4 +197,12 @@ __all__ = [
     "close_db",
     "check_db_connection",
     "AsyncSessionLocal",
+
+    # AI CLIENT
+    "AIClient",
+    "ai_client",
+    "AIMessage",
+    "AIMessages",
+    "AIResponse",
+
 ]

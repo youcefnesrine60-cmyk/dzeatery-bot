@@ -6,283 +6,121 @@
 # ==============================================
 
 # ==============================================
-# 🌍 LANGUAGE DETECTOR
-# كشف اللغة من النص
+# 🤖 AGENT MODULE
+# وحدة الوكيل الذكي
 # ==============================================
 
-import re
-from typing import (
-    Dict,
-    List,
-    Tuple,
-)
+# ==============================================
+# 📦 CONFIG
+# ==============================================
 
-# استيراد الأنواع من config
 from app.agent.config import (
-    ConfidenceScore,
+    AgentConfig,
+    LanguageConfig,
+    default_config,
+    language_config,
     LanguageCode,
     LanguageName,
-    language_config,
+    ConfidenceScore,
+    get_language_name as config_get_language_name,
+    is_language_supported,
+    get_supported_languages,
+    get_default_language,
 )
-from app.core.logger import logger
 
 # ==============================================
-# 🧩 TYPES
+# 🌍 LANGUAGE
 # ==============================================
 
-# استخدام الأنواع المستوردة
-LanguageDetectionResult = Tuple[LanguageCode, ConfidenceScore]
+from app.agent.language.detector import (
+    LanguageDetector,
+    detect_language,
+    get_language_name as detector_get_language_name,
+    LanguageDetectionResult,
+)
 
 # ==============================================
-# 🌍 LANGUAGE DETECTOR
+# 🧠 NLU
 # ==============================================
 
-
-class LanguageDetector:
-    """
-    كاشف اللغة - يكتشف لغة النص المدخل.
+from app.agent.nlu import (
+    # Intent Classifier
+    IntentClassifier,
+    classify_intent,
+    IntentResult,
+    IntentEntityDict,
     
-    يدعم: العربية (بلهجاتها)، الإنجليزية، الفرنسية
+    # Entity Extractor
+    EntityExtractor,
+    extract_entities,
+    ExtractionResult,
+    EntityDict,
+    EntityList,
+)
+
+# ==============================================
+# ⚡ EXECUTOR
+# ==============================================
+
+from app.agent.executor import (
+    # Base
+    BaseAction,
+    ActionResponse,
+    ActionResult,
     
-    Attributes:
-        patterns: أنماط كشف اللغة
-        confidence_threshold: عتبة الثقة
-    """
-
-    def __init__(
-        self,
-        *,
-        confidence_threshold: float = 0.3,
-    ) -> None:
-        """
-        تهيئة كاشف اللغة.
-        
-        Args:
-            confidence_threshold: عتبة الثقة للكشف
-        """
-        self.patterns: Dict[LanguageCode, List[str]] = language_config.DETECTION_PATTERNS
-        self.confidence_threshold: float = confidence_threshold
-
-        logger.info(
-            "language_detector_initialized",
-            extra={
-                "supported_languages": list(self.patterns.keys()),
-                "confidence_threshold": confidence_threshold,
-            },
-        )
-
-    # ==========================================
-    # 🔍 DETECT LANGUAGE
-    # ==========================================
-
-    def detect(
-        self,
-        *,
-        text: str,
-    ) -> LanguageDetectionResult:
-        """
-        كشف لغة النص.
-        
-        Args:
-            text: النص المراد كشف لغته
-            
-        Returns:
-            (رمز اللغة, نسبة الثقة)
-        """
-        if not text or not text.strip():
-            logger.debug(
-                "detect_language_empty_text",
-                extra={"text": text},
-            )
-            return language_config.LANGUAGE_CODES["ar"], 0.0
-
-        text_lower: str = text.lower().strip()
-        words: List[str] = re.findall(r'\w+', text_lower)
-
-        if not words:
-            logger.debug(
-                "detect_language_no_words",
-                extra={"text": text},
-            )
-            return language_config.LANGUAGE_CODES["ar"], 0.0
-
-        # حساب عدد الكلمات لكل لغة
-        scores: Dict[LanguageCode, int] = {
-            lang: 0 for lang in self.patterns.keys()
-        }
-
-        for word in words:
-            for lang, patterns in self.patterns.items():
-                for pattern in patterns:
-                    if pattern in word or word in pattern:
-                        scores[lang] += 1
-
-        # حساب نسبة الثقة
-        total: int = sum(scores.values())
-
-        if total == 0:
-            # محاولة الكشف عن طريق الأحرف
-            logger.debug(
-                "detect_language_fallback_to_characters",
-                extra={"text": text},
-            )
-            return self._detect_by_characters(text=text)
-
-        # اختيار اللغة ذات أعلى درجة
-        best_lang: LanguageCode = max(scores, key=scores.get)
-        confidence: ConfidenceScore = scores[best_lang] / total if total > 0 else 0.0
-
-        # إذا كانت الثقة منخفضة، استخدم اللغة الافتراضية
-        if confidence < self.confidence_threshold:
-            logger.debug(
-                "detect_language_low_confidence",
-                extra={
-                    "best_lang": best_lang,
-                    "confidence": confidence,
-                    "threshold": self.confidence_threshold,
-                },
-            )
-            return self._detect_by_characters(text=text)
-
-        logger.debug(
-            "detect_language_result",
-            extra={
-                "language": best_lang,
-                "confidence": confidence,
-                "text_preview": text[:50],
-            },
-        )
-
-        return best_lang, min(confidence, 1.0)
-
-    # ==========================================
-    # 🛠️ PRIVATE HELPERS
-    # ==========================================
-
-    def _detect_by_characters(
-        self,
-        *,
-        text: str,
-    ) -> LanguageDetectionResult:
-        """
-        كشف اللغة عن طريق تحليل الأحرف.
-        
-        Args:
-            text: النص المراد كشف لغته
-            
-        Returns:
-            (رمز اللغة, نسبة الثقة)
-        """
-        # نطاقات الأحرف العربية
-        arabic_range: re.Pattern = re.compile(
-            r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]',
-        )
-
-        # نطاقات الأحرف الفرنسية (أحرف لاتينية مع علامات)
-        french_range: re.Pattern = re.compile(
-            r'[àâäéèêëïîôöùûüÿç]',
-            re.IGNORECASE,
-        )
-
-        # حساب عدد الأحرف العربية
-        arabic_count: int = len(arabic_range.findall(text))
-
-        # حساب عدد الأحرف الفرنسية
-        french_count: int = len(french_range.findall(text))
-
-        # عدد الأحرف اللاتينية العامة
-        latin_count: int = len(re.findall(r'[a-zA-Z]', text)) - french_count
-
-        total: int = arabic_count + latin_count + french_count
-
-        if total == 0:
-            return language_config.LANGUAGE_CODES["ar"], 0.0
-
-        # إذا كان هناك أحرف عربية
-        if arabic_count > 0 and arabic_count / total > 0.3:
-            return language_config.LANGUAGE_CODES["ar"], min(arabic_count / total, 1.0)
-
-        # إذا كان هناك أحرف فرنسية
-        if french_count > 0 and french_count / total > 0.2:
-            return language_config.LANGUAGE_CODES["fr"], min(french_count / total, 1.0)
-
-        # إذا كان هناك أحرف لاتينية
-        if latin_count > 0:
-            # محاولة التمييز بين الإنجليزية والفرنسية
-            # التحقق من كلمات فرنسية شائعة
-            french_words: List[str] = [
-                "je", "tu", "il", "elle", "nous", "vous", "ils", "elles",
-                "le", "la", "les", "un", "une", "des",
-                "est", "sont", "être", "avoir", "faire",
-            ]
-            text_lower: str = text.lower()
-
-            french_score: int = sum(
-                1 for word in french_words if word in text_lower
-            )
-
-            if french_score > 2:
-                return language_config.LANGUAGE_CODES["fr"], min(0.7, french_score / 10)
-
-            return language_config.LANGUAGE_CODES["en"], min(0.8, latin_count / total)
-
-        return language_config.LANGUAGE_CODES["ar"], 0.0
-
-
-# ==============================================
-# 🔍 UTILITY FUNCTIONS
-# ==============================================
-
-# ==============================================
-# DETECT LANGUAGE
-# ==============================================
-
-def detect_language(
-    *,
-    text: str,
-) -> LanguageDetectionResult:
-    """
-    كشف لغة النص (دالة مساعدة).
+    # Registry
+    ActionRegistry,
+    action_registry,
+    get_action,
+    get_action_by_intent,
     
-    Args:
-        text: النص المراد كشف لغته
-        
-    Returns:
-        (رمز اللغة, نسبة الثقة)
-    """
-    logger.debug(
-        "detect_language_called",
-        extra={"text_length": len(text) if text else 0},
-    )
-
-    detector: LanguageDetector = LanguageDetector()
-
-    return detector.detect(text=text)
-
-
-# ==============================================
-# GET LANGUAGE NAME
-# ==============================================
-
-def get_language_name(
-    *,
-    lang_code: LanguageCode,
-) -> LanguageName:
-    """
-    الحصول على اسم اللغة من رمزها (دالة مساعدة).
+    # Actions
+    OrderFoodAction,
+    ViewMenuAction,
+    ViewRestaurantsAction,
+    ModifyOrderAction,
+    CancelOrderAction,
+    TrackOrderAction,
+    AskPriceAction,
+    AskOfferAction,
+    ComplaintAction,
+    HelpAction,
+    GreetingAction,
+    GoodbyeAction,
     
-    Args:
-        lang_code: رمز اللغة (ar, en, fr)
-        
-    Returns:
-        اسم اللغة
-    """
-    logger.debug(
-        "get_language_name_called",
-        extra={"lang_code": lang_code},
-    )
+    # Executor
+    ActionExecutor,
+    action_executor,
+    execute_action,
+    ExecutionResult,
+    ActionContext,
+)
 
-    return language_config.LANGUAGE_NAMES.get(lang_code, lang_code)
+# ==============================================
+# 🧠 MEMORY
+# ==============================================
+
+from app.agent.memory import (
+    MemoryManager,
+    memory_manager,
+    get_session,
+    add_message,
+    SessionData,
+    ContextData,
+    ConversationHistory,
+)
+
+# ==============================================
+# 🤖 ENGINE
+# ==============================================
+
+from app.agent.engine import (
+    AgentEngine,
+    agent_engine,
+    process_message,
+    ProcessResult,
+    AgentResponse,
+)
 
 
 # ==============================================
@@ -290,8 +128,83 @@ def get_language_name(
 # ==============================================
 
 __all__ = [
+    # Config
+    "AgentConfig",
+    "LanguageConfig",
+    "default_config",
+    "language_config",
+    "LanguageCode",
+    "LanguageName",
+    "ConfidenceScore",
+    "config_get_language_name",
+    "is_language_supported",
+    "get_supported_languages",
+    "get_default_language",
+    
+    # Language
     "LanguageDetector",
     "detect_language",
-    "get_language_name",
+    "detector_get_language_name",
     "LanguageDetectionResult",
+    
+    # NLU - Intent Classifier
+    "IntentClassifier",
+    "classify_intent",
+    "IntentResult",
+    "IntentEntityDict",
+    
+    # NLU - Entity Extractor
+    "EntityExtractor",
+    "extract_entities",
+    "ExtractionResult",
+    "EntityDict",
+    "EntityList",
+    
+    # Executor - Base
+    "BaseAction",
+    "ActionResponse",
+    "ActionResult",
+    
+    # Executor - Registry
+    "ActionRegistry",
+    "action_registry",
+    "get_action",
+    "get_action_by_intent",
+    
+    # Executor - Actions
+    "OrderFoodAction",
+    "ViewMenuAction",
+    "ViewRestaurantsAction",
+    "ModifyOrderAction",
+    "CancelOrderAction",
+    "TrackOrderAction",
+    "AskPriceAction",
+    "AskOfferAction",
+    "ComplaintAction",
+    "HelpAction",
+    "GreetingAction",
+    "GoodbyeAction",
+    
+    # Executor - Executor
+    "ActionExecutor",
+    "action_executor",
+    "execute_action",
+    "ExecutionResult",
+    "ActionContext",
+    
+    # Memory
+    "MemoryManager",
+    "memory_manager",
+    "get_session",
+    "add_message",
+    "SessionData",
+    "ContextData",
+    "ConversationHistory",
+    
+    # Engine
+    "AgentEngine",
+    "agent_engine",
+    "process_message",
+    "ProcessResult",
+    "AgentResponse",
 ]
