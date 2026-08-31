@@ -14,38 +14,33 @@ from typing import (
     Any,
     Dict,
     Optional,
-    Tuple,
 )
 
 from app.agent.config import (
     AgentConfig,
-    LanguageCode,
     default_config,
 )
 from app.agent.executor.action_executor import (
     ActionContext,
     ActionExecutor,
-    ExecutionResult,
 )
+from app.agent.executor.actions import ActionResponse
 from app.agent.language.detector import detect_language
 from app.agent.memory.memory_manager import (
     MemoryManager,
-    SessionData,
     memory_manager as default_memory,
 )
-from app.agent.nlu.entity_extractor import (
-    EntityExtractor,
-    ExtractionResult,
-)
+from app.agent.nlu.entity_extractor import EntityExtractor
 from app.agent.nlu.intent_classifier import (
     IntentClassifier,
-    IntentResult,
 )
 from app.agent.prompts.translations import (
-    ERROR_RESPONSES,
-    GOODBYE_RESPONSES,
     GREETING_RESPONSES,
-    HELP_RESPONSES,
+)
+from app.agent.response_generator import (
+    ResponseGenerator,
+    generate_response,
+    response_generator as default_response_generator,
 )
 from app.core.logger import logger
 
@@ -71,6 +66,7 @@ class AgentEngine:
         - مستخرج الكيانات
         - منفذ الإجراءات
         - مدير الذاكرة
+        - مولد الردود
     
     Attributes:
         config: إعدادات الوكيل
@@ -78,6 +74,7 @@ class AgentEngine:
         entity_extractor: مستخرج الكيانات
         action_executor: منفذ الإجراءات
         memory_manager: مدير الذاكرة
+        response_generator: مولد الردود
     """
 
     def __init__(
@@ -88,6 +85,7 @@ class AgentEngine:
         entity_extractor: Optional[EntityExtractor] = None,
         action_executor: Optional[ActionExecutor] = None,
         memory_manager: Optional[MemoryManager] = None,
+        response_generator: Optional[ResponseGenerator] = None,
     ) -> None:
         """
         تهيئة محرك الوكيل.
@@ -98,6 +96,7 @@ class AgentEngine:
             entity_extractor: مستخرج الكيانات (اختياري)
             action_executor: منفذ الإجراءات (اختياري)
             memory_manager: مدير الذاكرة (اختياري)
+            response_generator: مولد الردود (اختياري)
         """
         self.config: AgentConfig = config or default_config
 
@@ -114,6 +113,9 @@ class AgentEngine:
         self.memory_manager: MemoryManager = (
             memory_manager or default_memory
         )
+        self.response_generator: ResponseGenerator = (
+            response_generator or default_response_generator
+        )
 
         logger.info(
             "agent_engine_initialized",
@@ -124,6 +126,7 @@ class AgentEngine:
                     "confidence_threshold": self.config.confidence_threshold,
                     "default_language": self.config.default_language,
                 },
+                "response_generator_enabled": True,
             },
         )
 
@@ -157,6 +160,7 @@ class AgentEngine:
                 "language": str,
                 "intent": str,
                 "entities": Dict,
+                "intent_confidence": float,
                 "action_result": Dict,
                 "context": Dict,
                 "channel": str,
@@ -185,12 +189,12 @@ class AgentEngine:
         )
 
         # 2️⃣ الحصول على الجلسة أو إنشاؤها
+        session = None
+
         if session_id:
             session = await self.memory_manager.get_session(
                 session_id=session_id,
             )
-        else:
-            session = None
 
         if not session:
             # إنشاء جلسة جديدة
@@ -202,12 +206,13 @@ class AgentEngine:
             session_id = session["session_id"]
 
             # إضافة رسالة الترحيب إلى السياق
+            greeting = GREETING_RESPONSES.get(
+                language,
+                GREETING_RESPONSES["ar"],
+            )
             await self.memory_manager.add_message(
                 session_id=session_id,
-                message=GREETING_RESPONSES.get(
-                    language,
-                    GREETING_RESPONSES["ar"],
-                ),
+                message=greeting,
                 role="assistant",
             )
 
@@ -312,12 +317,25 @@ class AgentEngine:
             context=action_context,
         )
 
-        # 8️⃣ توليد الرد
-        response = await self._generate_response(
+        # 8️⃣ توليد الرد باستخدام Response Generator
+        response = await self.response_generator.generate(
             intent=intent,
             language=language,
-            action_result=action_result,
-            message=message,
+            action_result=ActionResponse(
+                success=action_result.get("success", False),
+                message=action_result.get("message", ""),
+                data=action_result.get("data"),
+                error=action_result.get("error"),
+            ),
+            context=await self.memory_manager.get_context(
+                session_id=session_id,
+            ),
+            user_message=message,
+            history=await self.memory_manager.get_history(
+                session_id=session_id,
+                limit=5,
+            ),
+            entities=all_entities,
         )
 
         # 9️⃣ حفظ رد الوكيل في الذاكرة
@@ -364,68 +382,6 @@ class AgentEngine:
             ),
             "channel": channel,
         }
-
-    # ==========================================
-    # 📝 RESPONSE GENERATION
-    # ==========================================
-
-    async def _generate_response(
-        self,
-        *,
-        intent: str,
-        language: str,
-        action_result: ExecutionResult,
-        message: str,
-    ) -> str:
-        """
-        توليد الرد المناسب.
-        
-        Args:
-            intent: النية المستخرجة
-            language: رمز اللغة
-            action_result: نتيجة تنفيذ الإجراء
-            message: رسالة المستخدم الأصلية
-            
-        Returns:
-            الرد النهائي
-        """
-        # إذا كان الإجراء ناجحاً، استخدم رسالة الإجراء
-        if action_result.get("success"):
-            response = action_result.get("message", "")
-            if response:
-                return response
-
-        # إذا فشل الإجراء، استخدم رسالة الخطأ
-        if not action_result.get("success"):
-            error = action_result.get("error")
-            if error == "unknown_intent":
-                return ERROR_RESPONSES.get(
-                    language,
-                    ERROR_RESPONSES["ar"],
-                )
-            return action_result.get("message", "حدث خطأ غير متوقع.")
-
-        # حالات خاصة للنوايا
-        if intent == "greeting":
-            return GREETING_RESPONSES.get(
-                language,
-                GREETING_RESPONSES["ar"],
-            )
-
-        if intent == "goodbye":
-            return GOODBYE_RESPONSES.get(
-                language,
-                GOODBYE_RESPONSES["ar"],
-            )
-
-        if intent == "help":
-            return HELP_RESPONSES.get(
-                language,
-                HELP_RESPONSES["ar"],
-            )
-
-        # رد افتراضي
-        return "آسف، لم أتمكن من معالجة طلبك. يرجى المحاولة مرة أخرى."
 
     # ==========================================
     # 📊 GET SESSION INFO
