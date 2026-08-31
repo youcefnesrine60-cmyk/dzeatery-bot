@@ -44,6 +44,7 @@ from app.agent.language.detector import (
 # ==============================================
 
 from app.agent.nlu import (
+
     # Intent Classifier
     IntentClassifier,
     classify_intent,
@@ -63,6 +64,7 @@ from app.agent.nlu import (
 # ==============================================
 
 from app.agent.executor import (
+
     # Base
     BaseAction,
     ActionResponse,
@@ -122,12 +124,24 @@ from app.agent.engine import (
     AgentResponse,
 )
 
+# ==============================================
+# 💬 RESPONSE GENERATOR
+# ==============================================
+
+from app.agent.response_generator import (
+    ResponseGenerator,
+    response_generator,
+    generate_response,
+    ResponseContext,
+    ResponseResult,
+)
 
 # ==============================================
 # 📋 EXPORTS
 # ==============================================
 
 __all__ = [
+
     # Config
     "AgentConfig",
     "LanguageConfig",
@@ -207,4 +221,12 @@ __all__ = [
     "process_message",
     "ProcessResult",
     "AgentResponse",
+
+    # Response Generator
+    "ResponseGenerator",
+    "response_generator",
+    "generate_response",
+    "ResponseContext",
+    "ResponseResult",
+
 ]
